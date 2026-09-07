@@ -1,5 +1,17 @@
 # Historia zmian
 
+## W przygotowaniu — Faza 7.1 zakończona (2026-09-08)
+
+- Opcjonalne `--gui`: okno pywebview i Vue, lokalne zasoby w wheel.
+- Interaktywny podgląd na danych przykładowych: TanStack Table/Query,
+  filtry, sortowanie, szczegóły i eksport przykładu w przeglądarce.
+- Bun + Vite + Tailwind 4 przez plugin Vite; kontrola Vue przez Node/vue-tsc.
+- Grafitowa paleta z błękitnolawendowym akcentem i własna ikona PNG/ICNS.
+- Odczyt core i operacje procesów w GUI pozostają kolejnym etapem.
+- Zweryfikowano 253 zaliczone testy Python (dodatkowo 1 pominięty), 3 testy Bun, kontrole typów
+  i formatowania, interakcje przeglądarkowe oraz rzeczywiste GUI z wheel
+  poza repozytorium. To zamknięcie prototypu, bez publikacji wydania.
+
 ## 0.1.0 — MVP przygotowane lokalnie (2026-09-08)
 
 - Wspólny core odczytuje lokalne TCP LISTEN, związane UDP, dane procesów

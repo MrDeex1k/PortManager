@@ -190,29 +190,65 @@ Szczegółowa matryca i ograniczenia odczytu macOS: `docs/release.md`.
 
 ## Faza 7 — GUI desktopowe `[ ]` (po MVP, zakres macOS)
 
-Następna faza po ukończeniu MVP na macOS. Status: zaplanowana, jeszcze
-niezaimplementowana. Stack zgodny z `docs/mvp.md` §5: `pywebview` + Vue.
+Następna faza po ukończeniu MVP na macOS. Status: **7.1 zakończona 2026-09-08**;
+zaimplementowany szkielet i interaktywny prototyp na danych przykładowych.
+Stack: `pywebview` + Vue,
+TanStack Table/Query, Bun, Vite i Tailwind przez plugin Vite. [Obsługa GUI](gui.md).
 GUI jest trzecim interfejsem do istniejącego `core/`; CLI i TUI pozostają dostępne.
 Testy Windows/Linux nadal czekają na środowiska, zgodnie z decyzją użytkownika.
 
-### 7.1 — szkielet aplikacji
+### 7.1 — szkielet aplikacji `[x]`
 
-- [ ] Flaga `portscanner --gui` uruchamia okno pywebview z widokiem Vue.
+- [x] Flaga `portscanner --gui` uruchamia okno pywebview z widokiem Vue.
       Brak flag nadal uruchamia TUI, a `--cli` pozostaje trybem jednorazowym.
-- [ ] Osobny frontend i sposób budowania zasobów GUI. Zależności GUI są
+- [x] Osobny frontend i sposób budowania zasobów GUI. Zależności GUI są
       opcjonalne; samo CLI/TUI nie wymaga Node ani instalowania pywebview.
-- [ ] Zdefiniowane uruchamianie deweloperskie i ładowanie zbudowanych zasobów
+- [x] Zdefiniowane uruchamianie deweloperskie i ładowanie zbudowanych zasobów
       lokalnych, z czytelnym komunikatem przy braku zależności GUI.
 
-### 7.2 — połączenie GUI z core
+Prototyp obejmuje również wygląd tabeli i szczegółów oraz interakcje na fixture.
+Nie zamyka to punktów 7.2–7.4: potrzebują rzeczywistego core i jego kontraktów.
+Bun uruchamia Vite i testy; `vue-tsc` wymaga Node oraz TypeScript 6.0.3.
+Dokładne wersje, uzasadnienie zgodności i instrukcje w `docs/gui.md`.
+
+Zamknięcie 2026-09-08: zaakceptowana paleta grafit + błękit z nutą lawendy,
+ikona aplikacji PNG/ICNS, uruchamianie przez Vite i ze spakowanych zasobów.
+Ruff lint/format bez błędów, Pyrefly 0 błędów (12 ostrzeżeń), pytest
+253 zaliczone / 1 pominięty z powodu uprawnień systemowych; 3 testy Bun
+zaliczone. Kontrola typów Vue, Prettier i build Vite przeszły.
+Sprawdzono interakcje przeglądarkowe i rzeczywiste okno macOS, również po
+instalacji wheel w oddzielnym środowisku poza repozytorium. Szczegóły
+i granice dowodów: [weryfikacja 7.1](gui.md#weryfikacja-zamknięcia-71).
+
+### 7.2 — połączenie GUI z core `[ ]` — następny etap
+
+Cel: zachować zaakceptowany wygląd prototypu i zastąpić dane przykładowe
+rzeczywistą migawką. Ten etap obejmuje odczyt; zapis plików i kończenie
+procesów pozostają w 7.4.
 
 - [ ] Mostek Python–JavaScript udostępnia konkretne operacje i serializuje
       istniejące modele; bez powielania logiki odczytu, filtrów i polityki procesów.
-- [ ] Zbieranie migawek i operacje procesów działają poza wątkiem interfejsu.
+- [ ] Zastąpienie `PreviewPort` i fixture adapterem do `collect_snapshot()`:
+      porty TCP/UDP, procesy, lokalne IP, publikacje Docker/Compose, tunele i tagi.
+      Filtry tekstowe, `:PORT` i `pid:PID` korzystają z istniejącego core.
+- [ ] Zbieranie migawek działa poza wątkiem interfejsu.
       Odświeżenia nie nakładają się i nie zastępują nowszych danych starszym wynikiem.
+- [ ] Automatyczne odświeżanie co 2 s zachowuje tożsamość zaznaczonego wpisu,
+      jeśli nadal istnieje; zniknięcie wpisu czyści jego szczegóły.
 - [ ] Raporty źródeł, błędy i ograniczenia uprawnień są widoczne w oknie.
       GUI nie wykonuje automatycznego zapytania o exit IP ani nie podnosi uprawnień.
+- [ ] Stany ładowania, pustej migawki, braku dopasowań, częściowych danych
+      i błędu są rozróżnione. Odmowa odczytu macOS nie wygląda jak brak portów.
 - [ ] `core/` zachowuje niezależność od wszystkich interfejsów.
+- [ ] Testy mostka obejmują wolny odczyt, błędy, częściowe dane i kolejność
+      wyników; kontrola rzeczywistych danych w GUI oraz regresja CLI/TUI.
+
+Warunek zakończenia 7.2: GUI pokazuje prawdziwe dane albo jawny raport ich
+niedostępności, pozostaje responsywne i nie zmienia celu zaznaczenia przy
+odświeżeniu. Nie deklarujemy pełnej widoczności systemu bez dowodu uprawnień.
+W 7.3 dopracowujemy kompletność tabeli, szczegóły i prezentację tych danych;
+7.4 dodaje eksport i potwierdzane operacje procesów, a 7.5 zamyka weryfikację
+pełnego przepływu i dostarczenie na macOS.
 
 ### 7.3 — widok portów
 
@@ -234,6 +270,8 @@ Testy Windows/Linux nadal czekają na środowiska, zgodnie z decyzją użytkowni
       na force i ponowna weryfikacja w core przed sygnałem.
 - [ ] Zmiana zaznaczenia lub odświeżenie podczas dialogu nie zmienia celu zgody.
       Odmowa polityki, zniknięcie procesu i timeout są obsługiwane w GUI.
+- [ ] Operacje procesów działają poza wątkiem interfejsu, z widocznym stanem
+      oczekiwania i bez możliwości powtórzenia tej samej operacji w trakcie.
 
 ### 7.5 — weryfikacja i dokumentacja na macOS
 

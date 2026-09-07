@@ -191,3 +191,11 @@ Thumbs.db
 # Lefthook: lokalne nadpisania hooków, nie do commitowania
 lefthook-local.yml
 lefthook-local.yaml
+
+# GUI: zależności i zasoby generowane przez Vite
+node_modules/
+portscanner/gui/assets/
+frontend/playwright-report/
+frontend/test-results/
+.playwright-cli/
+output/playwright/

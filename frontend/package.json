@@ -1,0 +1,32 @@
+{
+  "name": "portmanager-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "dev": "bun --bun vite",
+    "check": "node node_modules/vue-tsc/bin/vue-tsc.js --noEmit",
+    "build": "bun run check && bun --bun vite build",
+    "preview": "bun --bun vite preview --host 127.0.0.1",
+    "test": "bun test",
+    "format": "bun --bun prettier --write src tests vite.config.ts tsconfig.json package.json index.html .prettierrc.json",
+    "format:check": "bun --bun prettier --check src tests vite.config.ts tsconfig.json package.json index.html .prettierrc.json"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "5.102.8",
+    "@tanstack/vue-table": "9.2.4",
+    "lucide-vue-next": "1.0.0",
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/bun": "1.4.1",
+    "@vitejs/plugin-vue": "6.0.8",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vue-tsc": "3.3.11"
+  }
+}

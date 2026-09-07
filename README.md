@@ -54,10 +54,14 @@ Szczegóły: [CLI](docs/cli.md).
 ### GUI — do klikania 🖱️
 
 Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`.
-Status: **zaplanowana Faza 7, po MVP** — implementacja jeszcze nie rozpoczęta.
-Plan obejmuje szkielet okna, połączenie z core, tabelę i szczegóły portów,
-eksport oraz kończenie procesu z potwierdzeniem, a następnie weryfikację na macOS.
-Szczegóły: [Faza 7 w planie](docs/plan-mvp.md).
+Status: **Faza 7.1 zakończona — szkielet i interaktywny prototyp**. `--gui` otwiera okno
+z przykładową tabelą, filtrami, sortowaniem i inspektorem. Paleta: grafit oraz
+stonowany błękit z nutą lawendy. GUI nie odczytuje jeszcze danych komputera.
+Frontend: Vue + TanStack Table/Query, Bun, Vite i Tailwind przez plugin Vite.
+Uruchamianie, wersje i granice prototypu: [GUI](docs/gui.md).
+Połączenie z core i operacje pozostają w [Fazach 7.2–7.5](docs/plan-mvp.md).
+Następny etap to prawdziwe migawki, odczyty w tle i raporty uprawnień (7.2),
+z zachowaniem zaakceptowanej palety i ikony.
 
 ---
 
@@ -192,6 +196,7 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 | [`docs/core-api.md`](docs/core-api.md) | Kontrakt API core i ograniczenia źródeł |
 | [`docs/cli.md`](docs/cli.md) | Flagi CLI, JSON, kody wyjścia i polityka kończenia procesów |
 | [`docs/tui.md`](docs/tui.md) | Skróty TUI, odświeżanie, eksport JSON i dialog kończenia procesu |
+| [`docs/gui.md`](docs/gui.md) | Prototyp GUI, Bun/Vite, opcjonalny pywebview i pakowanie |
 | [`docs/release.md`](docs/release.md) | Instalacja pipx, powtarzalna weryfikacja i matryca systemów |
 | [`CHANGELOG.md`](CHANGELOG.md) | Historia zmian wydania |
 | [`docs/conventional-commits.md`](docs/conventional-commits.md) | Format commitów + hooki |
