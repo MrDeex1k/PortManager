@@ -1,0 +1,3 @@
+# Wymuszaj LF wszędzie: normalizacja do LF w repo + checkout z LF nawet na Windows.
+# `text=auto` nadal chroni pliki binarne (git sam je wykrywa i ich nie rusza).
+* text=auto eol=lf

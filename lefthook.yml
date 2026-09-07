@@ -1,0 +1,19 @@
+# lefthook.yml — lokalne hooki gita (odpowiednik Husky w świecie JS/TS).
+#
+# Instalacja (raz po klonie):
+#   lefthook install
+#
+# Instalacja samego lefthook (jedno z):
+#   brew install lefthook              # macOS
+#   winget install evilmartians.lefthook # Windows
+#   uv tool install lefthook            # dowolny OS (przez uv)
+#
+# Po `lefthook install` git używa hooków z tego pliku.
+# Nie ustawiaj ręcznie `core.hooksPath` — lefthook zarządza `.git/hooks` sam.
+
+commit-msg:
+  commands:
+    conventional-commits:
+      # {1} = plik z treścią commita, przekazywany przez gita do hooka commit-msg.
+      # Python zamiast sh+grep, żeby działało identycznie na Win/Mac/Linux.
+      run: python scripts/check_commit_msg.py {1}
