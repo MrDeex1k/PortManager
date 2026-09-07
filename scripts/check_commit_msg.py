@@ -40,9 +40,9 @@ def main() -> int:
         print("BŁĄD: commit nie spełnia Conventional Commits.", file=sys.stderr)
         print("", file=sys.stderr)
         print("  Oczekiwano:  <type>[scope][!]: <opis>", file=sys.stderr)
-        print("  Np.:         feat(tui): dodaj sortowanie po porcie", file=sys.stderr)
+        print("  Np.:         feat(tui): add sorting by port", file=sys.stderr)
         print(
-            "               fix(docker): popraw parsowanie IPv6 w Ports",
+            "               fix(docker): fix IPv6 port mapping parsing",
             file=sys.stderr,
         )
         print("", file=sys.stderr)
