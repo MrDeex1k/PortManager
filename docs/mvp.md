@@ -18,15 +18,20 @@ Struktura MVP:
 ```
 portscanner/
   core/        # czysta logika, zero UI (importowalne z CLI/TUI/GUI)
-    model.py       # PortEntry, ProcessInfo, LocalIP, ExitIP
+    model.py       # modele portów, procesów, IP, Dockera, tuneli i migawki
     listeners.py   # TCP LISTEN + związane UDP bez peera
     procs.py       # PID -> name/cmdline, obsługa AccessDenied
     ips.py         # adresy interfejsów + jawny odczyt exit IP
-    docker.py      # `docker ps` -> mapowania host:container
-    cloudflared.py # proces + config.yml + metrics :20241
+    docker.py      # `docker ps` + projekcja inspect -> mapowania host:container
+    cloudflared.py # proces + config.yml + metryki loopback przypisane PID
+    k8s.py         # heurystyczne tagi po procesie/protokole/porcie
+    snapshot.py    # scalanie źródeł i niezależne raporty błędów
   cli.py       # typer/rich.table + --json + --kill
   tui.py       # textual DataTable
 ```
+
+Kontrakt po Fazie 3: [API core](core-api.md). Doprecyzowuje odczyty opcjonalnych
+źródeł, pochodzenie danych i ograniczenia poniższych założeń MVP.
 
 Zasada: **`core/` nie importuje niczego z `cli.py`/`tui.py`**. Dzięki temu późniejsze GUI nie wymaga refaktoru.
 

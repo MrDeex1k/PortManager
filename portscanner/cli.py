@@ -17,7 +17,7 @@ def status(
     mode = "CLI" if cli else "TUI"
     typer.echo(
         f"PortScanner: tryb {mode} nie jest jeszcze zaimplementowany. "
-        "Ukończono Fazy 0–2; plan: docs/plan-mvp.md.",
+        "Ukończono Fazy 0–3; plan: docs/plan-mvp.md.",
         err=True,
     )
     raise typer.Exit(code=1)

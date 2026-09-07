@@ -2,8 +2,8 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Fazy 0–2 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
-> gniazd TCP/UDP, procesów i adresów IP. CLI i TUI są planowane; poniższa tabela
+> **Status: Fazy 0–3 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
+> gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s. CLI i TUI są planowane; poniższa tabela
 > i opis interfejsów pokazują docelowe MVP.
 
 ```text
@@ -143,21 +143,45 @@ Timeout dotyczy operacji gniazda, nie stanowi twardego limitu całej funkcji
 (w szczególności DNS); przyszły TUI powinien wykonać ją poza wątkiem renderowania.
 Awaria tej usługi nie wpływa na odczyty lokalne.
 
+## Wspólna migawka (Faza 3)
+
+```python
+from portscanner.core import collect_snapshot
+
+snapshot = collect_snapshot()
+for report in snapshot.reports:
+    print(report.source, report.status)
+for entry in snapshot.ports:
+    print(entry)
+```
+
+Migawka łączy porty, procesy, adresy, publikacje Dockera, reguły tuneli i tagi
+K8s. Błąd opcjonalnego źródła nie usuwa pozostałych danych. `origin="docker"`
+oznacza publikację bez potwierdzonego gniazda; reguła tunelu nie potwierdza
+publicznej dostępności hostname, a tag K8s jest heurystyką.
+
+Docker używa wyłącznie lokalnego socketu/pipe. Odczyt tuneli może czytać lokalną
+konfigurację i odpytywać metryki HTTP loopback procesu cloudflared.
+`collect_snapshot(docker=False, tunnels=False)` wyłącza te źródła;
+`metrics=False` pomija samo HTTP. Exit IP nadal wymaga osobnego wywołania.
+Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
+
 ## Dokumentacja
 
 | Plik | O czym |
 |---|---|
 | [`docs/mvp.md`](docs/mvp.md) | Pełna specyfikacja MVP: stack, decyzje, pułapki |
 | [`docs/plan-mvp.md`](docs/plan-mvp.md) | Fazy realizacji z checkboxami |
+| [`docs/core-api.md`](docs/core-api.md) | Kontrakt API po Fazie 3 i ograniczenia źródeł |
 | [`docs/conventional-commits.md`](docs/conventional-commits.md) | Format commitów + hooki |
 
 ## Status
 
-Fazy 0–2 ukończone; następna jest Faza 3 — Docker, tunele i tagi K8s.
+Fazy 0–3 ukończone; następna jest Faza 4 — CLI.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
 obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13:
-83 zaliczone, 1 systemowy test integracyjny pominięty z powodu uprawnień.
+146 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
 Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
 Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
 na podstawionych odpowiedziach HTTP oraz pojedynczym żądaniem HTTPS do ipify

@@ -95,12 +95,30 @@ Pyrefly 0 błędów. Testy HTTP używają kontrolowanych odpowiedzi. Dodatkowo
 poprawny IPv4 i etykieta, bez zapisywania adresu ani ponawiania żądania.
 Pełna matryca systemów nadal w Fazie 6.
 
-## Faza 3 — `core`: Docker + tunele + tagi `[ ]`
+## Faza 3 — `core`: Docker + tunele + tagi `[x]`
 
-- [ ] `docker.py`: `docker ps` → `host:cont` (decyzja z Fazy 0: CLI, nie SDK)
-- [ ] `cloudflared.py`: proces + `config.yml` + metryki `:20241`
-- [ ] Tagi K8s warstwa 1 (decyzja z Fazy 0)
-- [ ] Koniec logiki zbierania — zamrożenie API `core/`
+- [x] Modele: `SourceReport`, `Collection`, `DockerPort`, `TunnelInfo`,
+      `TunnelRoute`, `ServiceTag`, `Snapshot`; pochodzenie wiersza socket/docker.
+- [x] Docker CLI: lista `ps`, strukturalne mapowania przez projekcję `inspect`,
+      etykiety Compose, IPv4/IPv6 i TCP/UDP. Lokalny socket/pipe, timeouty,
+      obsługa braku CLI, daemona, znikających kontenerów i błędnych danych.
+- [x] Cloudflared: wykrywanie procesu, jawny/domniemany config YAML i tryb
+      tokenowy; dopasowanie lokalnych origin bez DNS. Metryki wyłącznie
+      na loopback przypisanym do PID, bez proxy/przekierowań, z limitami.
+- [x] Tagi K8s/K3s/MicroK8s warstwa 1: proces lub typowy port z jawną podstawą
+      heurystyki, bez kubectl i dostępu do klastra.
+- [x] Wspólna migawka `collect_snapshot()`: niezależne raporty źródeł,
+      mapowania Docker bez gniazda oznaczone `origin="docker"`, opcje wyłączenia
+      źródeł, bez automatycznego exit IP i bez zmian usług.
+- [x] Testy parserów, błędów, dopasowania adresów/protokołów, transportu HTTP
+      loopback i serializacji. API dla CLI/TUI opisane w `docs/core-api.md`.
+
+Weryfikacja (macOS/Python 3.13): 146 testów zaliczonych, 1 pominięty
+(systemowy odczyt gniazd wymaga dodatkowych uprawnień); Ruff lint + format
+bez błędów, Pyrefly 0 błędów. Lokalny Docker odpowiada, bez opublikowanych
+mapowań; brak działających tuneli. Przypadki mapowań/Compose/konfiguracji
+sprawdzone na danych testowych; rzeczywisty transport metryk na HTTP loopback.
+Szczegóły i ograniczenia w `docs/core-api.md`. Matryca systemów nadal w Fazie 6.
 
 ## Faza 4 — CLI `[ ]`
 
