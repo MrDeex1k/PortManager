@@ -15,6 +15,7 @@ from portscanner.core.actions import ProcessActionError, prepare_kill, terminate
 from portscanner.core.filtering import filter_entries
 from portscanner.core.ips import ExitIPError, fetch_exit_ip
 from portscanner.core.model import PortEntry, Snapshot
+from portscanner.core.redaction import redact_cmdline
 from portscanner.presentation import COLUMNS, entry_cells
 from portscanner.presentation import safe_text as _safe
 
@@ -66,7 +67,9 @@ def _kill(pid: int, *, force: bool, timeout: float) -> None:
         typer.echo(_safe(f"Proces PID {target.pid}: {target.name}"), err=True)
         # JSON zachowuje granice argumentów i ucieka znaki sterujące.
         typer.echo(
-            "Argumenty: " + json.dumps(target.cmdline, ensure_ascii=True), err=True
+            "Argumenty: "
+            + json.dumps(redact_cmdline(target.cmdline), ensure_ascii=True),
+            err=True,
         )
         operation = "terminate, a po timeout także kill" if force else "terminate"
         if not typer.confirm(

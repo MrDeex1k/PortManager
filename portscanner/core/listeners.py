@@ -61,10 +61,14 @@ def collect_listeners(*, group_dual_stack: bool = True) -> list[PortEntry]:
         else:
             continue
 
+        try:
+            bind = str(ip_address(connection.laddr.ip))
+        except ValueError:
+            continue
         entries.add(
             PortEntry(
                 proto=proto,
-                bind=str(ip_address(connection.laddr.ip)),
+                bind=bind,
                 port=connection.laddr.port,
                 pid=connection.pid,
             )

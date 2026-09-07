@@ -93,7 +93,7 @@ Zasady: zależności tylko przez `uv add`, nigdy ręczna edycja `uv.lock`. Bump 
 - `typer`: komendy z type-hintów, `portscanner --cli [--json] [--filter :8080]` lub `portscanner --cli --kill PID [--force]`, darmowy `--help` i walidacja.
 - Render: `rich.table.Table` albo czysty `print` (żeby `--json | jq` działało bez ANSI — wykryj `isatty` / flagę `--no-color`).
 - Tryb `--json`: wypisz `list[PortEntry]` jako JSON na stdout; raporty źródeł na stderr. Kod 0 przy udanym odczycie listeners, 1 przy jego błędzie (nawet gdy JSON zawiera częściowe dane), 2 przy błędnych argumentach. Szczegóły w [CLI](cli.md).
-- Odświeżanie: brak (one-shot). Opcjonalnie `--watch 2` (pętla + `clear`).
+- Odświeżanie: brak (one-shot). CLI nie obsługuje `--watch`; cykliczny odczyt zapewnia TUI.
 
 ### 4.2. TUI (Textual)
 

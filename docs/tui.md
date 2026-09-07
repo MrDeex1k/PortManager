@@ -77,6 +77,10 @@ ta sama tablica `PortEntry`, co `--cli --json`; nie zawiera raportów źródeł
 ani lokalnych IP. Przy niedostępnym źródle wynik może być częściowy — stan
 źródeł pozostaje widoczny w TUI.
 
+Argumenty w eksporcie i dialogu kończenia mają zamaskowane wartości znanych
+flag uwierzytelniających. Pozostałe argumenty są zachowane; zakres maskowania
+opisuje [API core](core-api.md#prywatność-argumentów-procesów).
+
 Plik jest tworzony wyłącznie jako nowy; kolizja nazwy lub istniejący symlink
 powodują błąd bez nadpisywania. Na POSIX plik ma uprawnienia `0600` (na Windows
 obowiązują ACL katalogu). Nieudany zapis usuwa rozpoczęty plik. Eksporty o tym

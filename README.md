@@ -130,6 +130,9 @@ addresses = collect_local_ips()  # może zgłosić LocalIPError
 Wcześniej pole to ma wartość `None` (szczegółów jeszcze nie odczytano).
 `ProcessInfo` zawiera PID, nazwę, argumenty jako tuple oraz status odczytu:
 `ok`, `unknown` (brak PID), `access_denied`, `gone` lub `error`.
+Wartości znanych flag uwierzytelniających w argumentach są maskowane jako `***`;
+dotyczy to także JSON i potwierdzeń kończenia procesu. Zakres maskowania:
+[API core](docs/core-api.md#prywatność-argumentów-procesów).
 Odmowa odczytu argumentów nie usuwa dostępnej nazwy; zakończenie procesu
 podczas odczytu usuwa częściowe szczegóły. PID odczytywany jest raz na migawkę,
 bez cache między odświeżeniami. Odczyt nie jest atomowy i nie stanowi podstawy

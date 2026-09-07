@@ -9,6 +9,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Static
 
 from portscanner.core.actions import KillTarget
+from portscanner.core.redaction import redact_cmdline
 from portscanner.presentation import safe_text
 
 
@@ -41,7 +42,7 @@ class KillScreen(ModalScreen[bool | None]):
                     + "\nPlik: "
                     + safe_text(self.target.executable)
                     + "\nArgumenty: "
-                    + json.dumps(self.target.cmdline, ensure_ascii=True)
+                    + json.dumps(redact_cmdline(self.target.cmdline), ensure_ascii=True)
                 )
             )
             yield Static(

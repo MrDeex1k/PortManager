@@ -2,7 +2,7 @@
 
 import math
 import re
-import sys
+import time
 from dataclasses import replace
 from http.client import HTTPException
 from ipaddress import ip_address
@@ -17,6 +17,7 @@ import yaml
 
 from portscanner.core.k8s import executable_name
 from portscanner.core.model import Collection, SourceReport, TunnelInfo, TunnelRoute
+from portscanner.core.namespaces import same_namespaces
 
 _MAX_CONFIG = 1024 * 1024
 _MAX_METRICS = 1024 * 1024
@@ -159,7 +160,10 @@ def _metrics_for(
     for connection in process.net_connections(kind="tcp"):
         if connection.status != psutil.CONN_LISTEN or not connection.laddr:
             continue
-        address = ip_address(connection.laddr.ip)
+        try:
+            address = ip_address(connection.laddr.ip)
+        except ValueError:
+            continue
         if address.is_unspecified:
             host = "127.0.0.1" if address.version == 4 else "::1"
         elif address.is_loopback:
@@ -167,9 +171,13 @@ def _metrics_for(
         else:
             continue
         endpoints.add((host, connection.laddr.port))
+    deadline = time.monotonic() + timeout
     for host, port in sorted(endpoints)[:8]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
         try:
-            return "ok", read_metrics(host, port, timeout=timeout)
+            return "ok", read_metrics(host, port, timeout=remaining)
         except (OSError, URLError, HTTPException, ValueError):
             continue
     return ("error" if endpoints else "unavailable"), None
@@ -177,14 +185,8 @@ def _metrics_for(
 
 def _host_namespace(pid: int) -> bool:
     # W kontenerze localhost i ścieżki konfiguracji mogą znaczyć coś innego.
-    if sys.platform != "linux":
-        return True
     try:
-        return all(
-            Path(f"/proc/{pid}/ns/{kind}").stat().st_ino
-            == Path(f"/proc/self/ns/{kind}").stat().st_ino
-            for kind in ("net", "mnt")
-        )
+        return same_namespaces(pid)
     except OSError:
         return False
 
@@ -196,7 +198,7 @@ def collect_tunnels(
 
     Konfiguracja domyślna jest jedynie inferred: plik może zmienić się po starcie.
     Tryb tokenowy/quick tunnel może nie udostępniać hostname. Metryki sprawdzamy
-    wyłącznie na gniazdach przypisanych PID (maks. 8, timeout na każde żądanie).
+    wyłącznie na gniazdach przypisanych PID (maks. 8, wspólny budżet prób).
     """
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout musi być dodatni i skończony")

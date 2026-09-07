@@ -259,3 +259,51 @@ def test_other_namespace_does_not_map_container_localhost(
     assert result.report.status == "partial"
     assert result.items[0].pid == 42 and not result.items[0].routes
     connector.net_connections.assert_not_called()
+
+
+@pytest.mark.parametrize("succeed", [False, True])
+def test_metrics_share_one_budget_across_endpoint_attempts(
+    connector: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+    succeed: bool,
+) -> None:
+    connector.net_connections.return_value = [
+        SimpleNamespace(
+            status=psutil.CONN_LISTEN,
+            laddr=SimpleNamespace(ip="127.0.0.1", port=20241 + n),
+        )
+        for n in range(8)
+    ]
+    now = [100.0]
+    monkeypatch.setattr(cf.time, "monotonic", lambda: now[0])
+
+    def attempt(host: str, port: int, *, timeout: float) -> int:
+        now[0] += min(2.0, timeout)
+        if succeed and port == 20242:
+            return 4
+        raise TimeoutError("timeout")
+
+    read = Mock(side_effect=attempt)
+    monkeypatch.setattr(cf, "read_metrics", read)
+    result = cf._metrics_for(connector, timeout=3.0)
+    assert result == (("ok", 4) if succeed else ("error", None))
+    assert [call.kwargs["timeout"] for call in read.call_args_list] == [3.0, 1.0]
+    assert now[0] == 103.0
+
+
+def test_metrics_skip_bad_addresses_and_preserve_unavailable_status(
+    connector: Mock,
+) -> None:
+    connector.net_connections.return_value = [
+        SimpleNamespace(
+            status=psutil.CONN_LISTEN, laddr=SimpleNamespace(ip="invalid", port=20241)
+        )
+    ]
+    assert cf._metrics_for(connector, timeout=1.0) == ("unavailable", None)
+
+
+def test_namespace_read_error_is_not_host_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cf, "same_namespaces", Mock(side_effect=PermissionError()))
+    assert not cf._host_namespace(42)

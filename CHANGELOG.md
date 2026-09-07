@@ -11,6 +11,10 @@
   oraz jawny odczyt exit IP. Raporty trafiają na stderr.
 - Kończenie własnego procesu wymaga allowlisty, weryfikacji tożsamości
   i zgody w CLI/TUI. Force pozwala na eskalację dopiero po timeout.
+- Znane argumenty uwierzytelniające są maskowane w migawkach, JSON
+  i potwierdzeniach, bez osłabiania ponownej weryfikacji celu operacji.
+- Nieparsowalne adresy nie przerywają pozostałych odczytów, a próby metryk
+  jednego procesu dzielą wspólny budżet czasu.
 - Pakowanie: sdist i wheel, instalacja przez pipx. Skrypt weryfikuje
   zbudowany wheel poza repozytorium i bez zmiany instalacji użytkownika.
 

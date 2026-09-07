@@ -89,6 +89,11 @@ CLI odczytuje i pokazuje nazwę oraz argumenty, następnie pyta o potwierdzenie
 Nie ma flagi pomijającej potwierdzenie. `--kill` nie łączy się z filtrami,
 JSON, exit IP ani opcjami wyboru źródeł. Nie wykonuje pełnej migawki ani HTTP.
 
+Znane flagi uwierzytelniające są maskowane jako `***` zarówno w JSON,
+jak i w argumentach pokazywanych przed zgodą. Pełne argumenty służą jedynie
+do wewnętrznego porównania tożsamości celu. Zakres i ograniczenia maskowania:
+[API core](core-api.md#prywatność-argumentów-procesów).
+
 Wspólny moduł `core/actions.py` wprowadza następującą politykę MVP:
 
 1. Tylko własny proces użytkownika, z widocznym gniazdem TCP LISTEN lub związanym

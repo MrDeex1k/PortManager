@@ -37,6 +37,12 @@ Nie podnosimy uprawnień automatycznie. W fazie 6 nie odpytano ipify.
 
 ## Odtworzenie kontroli
 
+Po poprawkach przeglądu PR #1 wykonano na macOS / Python 3.13.9 ponowny
+pełny przebieg: 253 testy zaliczone, 1 pominięty (ten sam wymóg uprawnień OS).
+Ruff i Pyrefly bez błędów. Nowe regresje obejmują wspólny budżet prób metryk,
+pomijanie błędnych adresów, maskowanie argumentów i zachowanie pełnej weryfikacji
+celu operacji oraz wspólną kontrolę przestrzeni nazw.
+
 W katalogu repozytorium, po zainstalowaniu uv:
 
 ```bash

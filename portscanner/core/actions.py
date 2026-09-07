@@ -4,13 +4,12 @@ import math
 import os
 import re
 import socket
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 import psutil
 
 from portscanner.core.k8s import executable_name
+from portscanner.core.namespaces import same_namespaces as _same_namespaces
 
 # Zamknięta allowlista; nowy typ procesu wymaga świadomej zmiany polityki.
 _ALLOWED = {
@@ -92,16 +91,6 @@ def _same_owner(process: psutil.Process) -> bool:
         return process.username().casefold() == psutil.Process().username().casefold()
     uids = process.uids()
     return uids.real == os.getuid() and uids.effective == os.getuid()
-
-
-def _same_namespaces(pid: int) -> bool:
-    if sys.platform != "linux":
-        return True
-    return all(
-        Path(f"/proc/{pid}/ns/{kind}").stat().st_ino
-        == Path(f"/proc/self/ns/{kind}").stat().st_ino
-        for kind in ("net", "mnt")
-    )
 
 
 def _has_local_socket(process: psutil.Process) -> bool:

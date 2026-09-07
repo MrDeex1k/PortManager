@@ -35,7 +35,10 @@ def collect_local_ips() -> list[LocalIP]:
             for address in addresses:
                 if address.family not in (socket.AF_INET, socket.AF_INET6):
                     continue
-                parsed = ip_address(address.address)
+                try:
+                    parsed = ip_address(address.address)
+                except ValueError:
+                    continue
                 entries.add(
                     LocalIP(
                         interface=interface,
@@ -43,7 +46,7 @@ def collect_local_ips() -> list[LocalIP]:
                         family="ipv4" if parsed.version == 4 else "ipv6",
                     )
                 )
-    except (psutil.Error, OSError, ValueError) as exc:
+    except (psutil.Error, OSError) as exc:
         raise LocalIPError("Nie udało się odczytać lokalnych adresów IP.") from exc
     return sorted(
         entries, key=lambda entry: (entry.interface, entry.family, entry.address)
