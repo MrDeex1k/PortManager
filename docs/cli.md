@@ -12,7 +12,7 @@ uv run portscanner --cli --no-docker --no-tunnels --no-color
 ```
 
 `portscanner --help` nie wykonuje odczytów systemowych. Brak `--cli` wybiera
-przyszły TUI; do czasu Fazy 5 zwraca komunikat o jego niedostępności i kod 1.
+interaktywny [TUI](tui.md), dostępny od Fazy 5.
 Opcje odczytu/kończenia wymagają `--cli`. CLI jest jednorazowe, bez `--watch`.
 
 Tabela pokazuje protokół, bind, port, PID, proces, mapowania Dockera, reguły
@@ -71,7 +71,7 @@ Nie należy uznawać pustej tablicy za brak portów bez sprawdzenia kodu wyjści
 | Kod | Znaczenie |
 |---|---|
 | `0` | Odczyt podstawowy udany (także brak dopasowań), pomoc lub zakończenie procesu |
-| `1` | Brak odczytu listeners, błąd jawnego exit IP, niedostępny TUI, odmowa/anulowanie/błąd operacji kill |
+| `1` | Brak odczytu listeners, błąd jawnego exit IP, odmowa/anulowanie/błąd operacji kill |
 | `2` | Nieprawidłowe argumenty lub niedozwolone połączenie flag |
 
 Na macOS systemowy odczyt psutil może wymagać root; CLI nie podnosi uprawnień.
@@ -115,7 +115,7 @@ Wspólny moduł `core/actions.py` wprowadza następującą politykę MVP:
 
 Na Windows `terminate()` również kończy proces twardo. Operacje nie są
 transakcją; zakończonego procesu nie przywracamy. Błąd weryfikacji/uprawnień
-powoduje odmowę działania, bez automatycznego sudo/UAC. TUI w Fazie 5 wykorzysta
+powoduje odmowę działania, bez automatycznego sudo/UAC. TUI od Fazy 5 wykorzystuje
 te same funkcje `prepare_kill` i `terminate_target` oraz własny dialog zgody.
 
 ## Weryfikacja Fazy 4

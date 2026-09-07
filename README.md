@@ -2,10 +2,10 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Fazy 0–4 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
-> gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s oraz działające CLI.
-> TUI pozostaje w Fazie 5; poniższa tabela
-> i opis interfejsów pokazują docelowe MVP.
+> **Status: Fazy 0–5 ukończone.** Instalowalny pakiet zawiera odczyt lokalnych
+> gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s, jednorazowe CLI
+> oraz domyślny TUI z filtrem, sortowaniem, eksportem i kończeniem procesów.
+> Pozostaje Faza 6: stabilizacja, matryca systemów i release MVP.
 
 ```text
  PROTO  BIND       PORT   PID    PROC            DOCKER           TUNNEL
@@ -29,7 +29,10 @@ Docelowo cała logika będzie w `portscanner/core/` — każdy interfejs będzie
 
 Interaktywna tabela w terminalu. Domyślny tryb: wpisz `portscanner` i patrz.
 
-Filtr (`/`), sortowanie (`s`), odświeżanie co 2 s, ubijanie procesu (`k` z potwierdzeniem), eksport do JSON (`j`).
+Filtr (`/`), sortowanie (`s`), odświeżanie co 2 s, kończenie procesu (`k`
+z potwierdzeniem), eksport do JSON (`j`) i wyjście (`q`). Odczyty w tle nie
+blokują nawigacji; raporty źródeł pokazują ograniczenia uprawnień.
+Szczegóły: [TUI](docs/tui.md).
 
 ### CLI — do skryptów ⚙️
 
@@ -58,7 +61,7 @@ Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`. Status: **p
 ```bash
 uv sync --locked
 uv run portscanner --help   # działa już w Fazie 0
-uv run portscanner          # komunikat o braku TUI, kod wyjścia 1
+uv run portscanner          # interaktywny TUI
 uv run portscanner --cli    # jednorazowa tabela portów
 uv run portscanner --cli --json --filter :8080  # JSON dla jednego portu
 ```
@@ -79,7 +82,7 @@ uv build
 Pakowanie używa Hatchling i jawnego `[build-system]`, wymaganego dla komendy
 pakietu przez [uv](https://docs.astral.sh/uv/concepts/projects/config/#build-systems).
 Dystrybucja MVP pozostaje przez `pipx install git+https://github.com/MrDeex1k/PortManager.git`.
-CLI jest dostępne; pełny TUI powstanie w Fazie 5.
+CLI i TUI są dostępne; weryfikacja wydania na trzech systemach pozostaje w Fazie 6.
 
 ## Odczyt portów z Pythona (Faza 1)
 
@@ -124,7 +127,7 @@ Wcześniej pole to ma wartość `None` (szczegółów jeszcze nie odczytano).
 Odmowa odczytu argumentów nie usuwa dostępnej nazwy; zakończenie procesu
 podczas odczytu usuwa częściowe szczegóły. PID odczytywany jest raz na migawkę,
 bez cache między odświeżeniami. Odczyt nie jest atomowy i nie stanowi podstawy
-do kill bez ponownej weryfikacji tożsamości procesu w przyszłej Fazie 5.
+do kill bez ponownej weryfikacji tożsamości procesu w `core/actions.py`.
 
 `collect_local_ips()` zwraca listę `LocalIP(interface, address, family)`,
 w tym loopback, VPN i link-local. Zachowuje scope IPv6 zwrócony przez OS.
@@ -182,15 +185,16 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 | [`docs/plan-mvp.md`](docs/plan-mvp.md) | Fazy realizacji z checkboxami |
 | [`docs/core-api.md`](docs/core-api.md) | Kontrakt API core i ograniczenia źródeł |
 | [`docs/cli.md`](docs/cli.md) | Flagi CLI, JSON, kody wyjścia i polityka kończenia procesów |
+| [`docs/tui.md`](docs/tui.md) | Skróty TUI, odświeżanie, eksport JSON i dialog kończenia procesu |
 | [`docs/conventional-commits.md`](docs/conventional-commits.md) | Format commitów + hooki |
 
 ## Status
 
-Fazy 0–4 ukończone; następna jest Faza 5 — TUI.
+Fazy 0–5 ukończone; następna jest Faza 6 — stabilizacja i release MVP.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
 obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13:
-214 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
+231 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
 Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
 Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
 na podstawionych odpowiedziach HTTP oraz pojedynczym żądaniem HTTPS do ipify

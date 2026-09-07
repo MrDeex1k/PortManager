@@ -33,7 +33,7 @@ Interfejs musi pokazać raporty; nie może zamieniać błędu odczytu na „brak
 
 Błędy operacyjne źródeł znajdują się w raportach i nie blokują pozostałych danych.
 Nieprawidłowy argument `timeout` zgłasza `ValueError`. Limit dotyczy pojedynczej
-operacji, nie całej migawki. Wywołania są synchroniczne; TUI powinien użyć workera.
+operacji, nie całej migawki. Wywołania są synchroniczne; TUI wykonuje je przez workera poza wątkiem UI.
 Wyłączenie `docker`/`tunnels` pomija dane źródło. `metrics=False` pozostawia
 wykrywanie procesów i konfiguracji bez HTTP. Exit IP nie jest częścią migawki
 ani jej automatycznego odświeżania — nadal służy do tego jawne `fetch_exit_ip()`.
@@ -159,4 +159,4 @@ po czym wywołuje `terminate_target(target, force=False, timeout=3.0)`.
 Ta funkcja ponownie sprawdza tożsamość i reguły przed sygnałem oraz eskalacją.
 Błędy i odmowy zgłaszają `ProcessActionError`; nieprawidłowy timeout `ValueError`.
 Wywołania `collect_snapshot()` nigdy nie kończą procesów.
-Politykę i allowlistę opisuje [CLI](cli.md); TUI ma współdzielić te funkcje.
+Politykę i allowlistę opisuje [CLI](cli.md); TUI współdzieli te funkcje i zapewnia własny dialog zgody.

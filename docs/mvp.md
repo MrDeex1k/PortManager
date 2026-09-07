@@ -29,13 +29,16 @@ portscanner/
     filtering.py   # wspólne filtry portów
     actions.py     # polityka kończenia procesów dla CLI/TUI
   cli.py       # typer/rich.table + --json + --kill
-  tui.py       # textual DataTable
+  presentation.py # wspólne komórki CLI/TUI, bez logiki odczytu
+  tui/
+    app.py         # Textual: tabela, workery, filtr, eksport
+    dialogs.py     # dialog zgody na zakończenie procesu
 ```
 
 Kontrakt po Fazie 3: [API core](core-api.md). Doprecyzowuje odczyty opcjonalnych
 źródeł, pochodzenie danych i ograniczenia poniższych założeń MVP.
 
-Zasada: **`core/` nie importuje niczego z `cli.py`/`tui.py`**. Dzięki temu późniejsze GUI nie wymaga refaktoru.
+Zasada: **`core/` nie importuje niczego z `cli.py`/`tui/`**. Dzięki temu późniejsze GUI nie wymaga refaktoru.
 
 ---
 
@@ -97,8 +100,8 @@ Zasady: zależności tylko przez `uv add`, nigdy ręczna edycja `uv.lock`. Bump 
 - Jeden ekran: `Header + Input(filtr) + DataTable + Footer`.
 - Kolumny: `PROTO | BIND | PORT | PID | PROC | DOCKER (host->cont / compose proj.) | TUNNEL (hostname)`.
 - Klawisze: `/` filtr, `s` sort po porcie/procesie, `k` kill (z potwierdzeniem), `r` refresh, `q` quit, `j` eksport JSON.
-- Odświeżanie: `set_interval(2.0)` + diff po kluczu `(proto, bind, port)` żeby nie migało.
-- Błąd uprawnień: wiersz `PID ? (odmowa dostępu — uruchom jako admin)` zamiast crasha.
+- Odświeżanie: `set_interval(2.0)` i worker, najwyżej jeden odczyt naraz. Diff po kluczu `(proto, bind, port, pid, origin)` zachowuje osobne procesy współdzielące port; zaznaczenie jest utrzymywane.
+- Błąd uprawnień: raport źródła nad tabelą; nieznany PID jako `?`, status częściowego odczytu przy nazwie procesu. Bez podnoszenia uprawnień. Obsługa i ograniczenia: [TUI](tui.md).
 
 Textual, nie `curses`: `curses` nie działa natywnie na Windows, Textual działa wszędzie.
 

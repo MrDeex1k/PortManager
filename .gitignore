@@ -181,6 +181,9 @@ cython_debug/
 .cursorindexingignore
 
 # --- PortManager: wpisy projektowe ---
+# Eksporty TUI zawierają lokalne PID, adresy i argumenty procesów.
+portscanner-*.json
+
 # Śmieci systemowe (dev na 3 OS-ach)
 .DS_Store
 Thumbs.db

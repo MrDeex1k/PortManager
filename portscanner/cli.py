@@ -1,8 +1,7 @@
-"""Jednorazowe CLI nad core; bez flag nadal wybierany jest przyszły TUI."""
+"""Jednorazowe CLI nad core; bez flag uruchamiany jest TUI."""
 
 import json
 import math
-import unicodedata
 from dataclasses import asdict
 from typing import Annotated
 
@@ -16,68 +15,19 @@ from portscanner.core.actions import ProcessActionError, prepare_kill, terminate
 from portscanner.core.filtering import filter_entries
 from portscanner.core.ips import ExitIPError, fetch_exit_ip
 from portscanner.core.model import PortEntry, Snapshot
+from portscanner.presentation import COLUMNS, entry_cells
+from portscanner.presentation import safe_text as _safe
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-
-
-def _safe(text: str) -> str:
-    # Dane procesów/configów nie mogą sterować terminalem ani używać Rich markup.
-    return "".join(
-        char if unicodedata.category(char) not in ("Cc", "Cf") else "?" for char in text
-    )
 
 
 def _table(entries: list[PortEntry], snapshot: Snapshot, *, no_color: bool) -> None:
     console = Console(no_color=no_color, markup=False, highlight=False)
     table = Table(title="Lokalne porty", show_lines=True)
-    for column in (
-        "PROTO",
-        "BIND",
-        "PORT",
-        "PID",
-        "PROC",
-        "DOCKER",
-        "TUNNEL",
-        "TAG",
-        "ŹRÓDŁO",
-    ):
+    for column in COLUMNS:
         table.add_column(column, overflow="fold")
     for entry in entries:
-        process = entry.process
-        name = process.name if process and process.name else "?"
-        if process and process.status != "ok":
-            name += f" ({process.status})"
-        docker = "; ".join(
-            f"{m.container_name}: {m.host_port} → {m.container_port}/{m.proto}"
-            + (
-                f" ({m.compose_project}/{m.compose_service or '?'})"
-                if m.compose_project
-                else ""
-            )
-            for m in entry.docker
-        )
-        tunnels = "; ".join(
-            f"{r.hostname or '(hostname nieznany)'}"
-            f"{(' path=' + r.path) if r.path else ''} [config]"
-            for r in entry.tunnels
-        )
-        tags = ", ".join(f"{tag.name} ({tag.evidence})" for tag in entry.tags)
-        table.add_row(
-            *(
-                Text(_safe(value))
-                for value in (
-                    entry.proto,
-                    entry.bind,
-                    str(entry.port),
-                    str(entry.pid) if entry.pid is not None else "?",
-                    name,
-                    docker or "—",
-                    tunnels or "—",
-                    tags or "—",
-                    entry.origin,
-                )
-            )
-        )
+        table.add_row(*(Text(value) for value in entry_cells(entry)))
     console.print(table)
     if not entries:
         console.print("Brak pasujących wpisów w dostępnych danych.")
@@ -199,10 +149,10 @@ def run(
             )
         ):
             raise typer.BadParameter("Te opcje wymagają --cli.")
-        typer.echo(
-            "Tryb domyślny to TUI, dostępny od Fazy 5. Użyj --cli lub --help.", err=True
-        )
-        raise typer.Exit(code=1)
+        from portscanner.tui import PortScannerApp
+
+        PortScannerApp().run()
+        return
     if force and kill is None:
         raise typer.BadParameter("--force wymaga --kill.")
     if kill is not None:

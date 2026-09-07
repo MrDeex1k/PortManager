@@ -72,9 +72,14 @@ def test_json_golden_contract(source: Mock) -> None:
     assert "\x1b" not in result.stdout and "IP lokalne" not in result.stdout
 
 
-def test_default_routes_to_pending_tui_without_scan(source: Mock) -> None:
+def test_default_launches_tui(source: Mock, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portscanner.tui import PortScannerApp
+
+    launch = Mock()
+    monkeypatch.setattr(PortScannerApp, "run", launch)
     result = runner.invoke(cli.app, [])
-    assert result.exit_code == 1 and "TUI" in result.stderr
+    assert result.exit_code == 0, result.output
+    launch.assert_called_once_with()
     source.assert_not_called()
 
 

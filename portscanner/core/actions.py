@@ -1,4 +1,4 @@
-"""Wspólna polityka kończenia procesów dla CLI i przyszłego TUI."""
+"""Wspólna polityka kończenia procesów dla CLI i TUI."""
 
 import math
 import os

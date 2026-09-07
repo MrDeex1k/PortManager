@@ -140,13 +140,30 @@ lint + format bez błędów, Pyrefly 0 błędów. Test rzeczywistego terminate d
 wyłącznie tymczasowego procesu utworzonego przez test. Zainstalowana komenda
 zwraca poprawny JSON, stderr i kod błędu przy odmowie systemowego odczytu.
 
-## Faza 5 — TUI + kill `[ ]`
+## Faza 5 — TUI + kill `[x]`
 
-- [ ] Textual: `Header + Input + DataTable + Footer`, kolumny z §4.2
-- [ ] Klawisze: `/` filtr, `s` sort, `r` refresh (diff co 2 s), `j` eksport, `q` quit
-- [ ] Kill w TUI: klawisz `k` i dialog zgody, wykorzystujące politykę
-      `core/actions.py` wdrożoną dla CLI w Fazie 4.
-- [ ] Smoke testy headless (`run_test()` / `Pilot`): start, filtr, quit
+- [x] Domyślny Textual: `Header + Input + DataTable + Footer`, kolumny z §4.2,
+      dodatkowo TAG/ŹRÓDŁO, lokalne IP, czas odczytu i raporty źródeł.
+- [x] `/` filtr, `s` sortowanie liczbowe po porcie lub tekstowe po procesie,
+      `r` odczyt, `q` wyjście; Enter/Esc przywracają fokus tabeli.
+- [x] Timer co 2 s i odczyty w tle bez nakładania. Diff wierszy/komórek zachowuje
+      zaznaczenie; klucz rozszerzony o PID i origin rozróżnia współdzielone porty.
+- [x] `j` zapisuje widoczną, posortowaną migawkę do nowego pliku JSON w cwd,
+      bez nadpisania, z raportem wyniku; na POSIX prawa 0600.
+- [x] `k` i dialog zgody korzystają z `core/actions.py`: domyślne anulowanie,
+      jawny force, niezmienny cel potwierdzenia, ponowna weryfikacja w core,
+      brak blokowania UI podczas operacji i obsługa odmów/błędów.
+- [x] Testy `run_test()` / Pilot: start, filtr, sort, quit, diff, timer,
+      błędy źródeł, eksport, anulowanie/zgoda/force i wolna operacja procesu.
+      Wspólne formatowanie CLI/TUI w `presentation.py`; core bez importów UI.
+- [x] Dokumentacja PL w `docs/tui.md`, README oraz aktualizacja kontraktów.
+
+Weryfikacja: 231 testów zaliczonych, 1 pominięty (uprawnienia macOS), Ruff
+lint + format bez błędów, Pyrefly 0 błędów. Komenda bez flag uruchomiona
+w terminalu PTY: działający TUI z raportami ograniczeń, wyjście przez `q` z kodem 0.
+Testy TUI używają kontrolowanych danych i nie kończą istniejących procesów.
+Zbudowano sdist i wheel; sprawdzono obecność modułów TUI w wheel.
+Matryca systemów i wydanie przez pipx pozostają w Fazie 6.
 
 ## Faza 6 — stabilizacja i release MVP `[ ]`
 
