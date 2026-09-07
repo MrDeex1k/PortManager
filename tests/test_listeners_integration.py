@@ -11,6 +11,7 @@ import pytest
 
 from portscanner.core.listeners import ListenerAccessDenied, collect_listeners
 from portscanner.core.model import PortEntry
+from portscanner.core.procs import enrich_processes
 
 
 @pytest.mark.parametrize("system_wide", [False, True], ids=["own-process", "system"])
@@ -62,3 +63,11 @@ def test_real_local_sockets(monkeypatch: pytest.MonkeyPatch, system_wide: bool) 
             entry.proto == "udp" and entry.port == udp_client.getsockname()[1]
             for entry in entries
         )
+        own_entries = [entry for entry in entries if entry.pid == os.getpid()]
+        enriched = enrich_processes(own_entries)
+        assert enriched
+        for entry in enriched:
+            assert entry.process is not None
+            assert entry.process.status == "ok"
+            assert entry.process.name
+            assert entry.process.cmdline

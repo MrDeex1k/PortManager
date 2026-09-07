@@ -68,11 +68,30 @@ rzeczywistych danych `psutil.Process().net_connections()` i podstawia jedynie
 źródło odczytu; nie jest dowodem pełnego odczytu systemowego. Ruff lint + format
 bez błędów, Pyrefly 0 błędów. Pełna matryca systemów pozostaje w Fazie 6.
 
-## Faza 2 — `core`: procesy + IP `[ ]`
+## Faza 2 — `core`: procesy + IP `[x]`
 
-- [ ] `procs.py`: PID → name/cmdline, `AccessDenied` jako `PID ?` (nie crash)
-- [ ] `ips.py`: local IP + exit IP (z podpisem "widziane z internetu")
-- [ ] Testy jednostkowe obu modułów
+- [x] Procesy: `read_process(pid) -> ProcessInfo` z nazwą, argumentami i statusem
+      odczytu (`ok`, `unknown`, `access_denied`, `gone`, `error`). Zachowanie
+      dostępnych pól przy częściowej odmowie dostępu. Brak PID nie odpytuje
+      własnego procesu. Zniknięcie / wykryte ponowne użycie PID usuwa szczegóły.
+- [x] Wzbogacanie: `enrich_processes(entries) -> list[PortEntry]`, pole `process`,
+      bez mutowania wejścia; każdy PID odczytywany raz na wywołanie, bez cache
+      między migawkami. Odczyt portów i procesów nie jest atomowy.
+- [x] Lokalne IP: `collect_local_ips() -> list[LocalIP]`, interfejs + IPv4/IPv6,
+      także loopback/VPN/link-local, scope IPv6, deduplikacja i stabilna kolejność.
+      Bez DNS/HTTP; błędy jako `LocalIPError`.
+- [x] Exit IP: osobne `fetch_exit_ip(timeout=3.0) -> ExitIP`, HTTPS do
+      `api64.ipify.org`, IPv4 lub IPv6, etykieta `exit IP (widziane z internetu)`.
+      Tylko jawne wywołanie, timeout operacji gniazda, bez retry, limit 64 bajtów,
+      walidacja publicznego adresu i błędy jako `ExitIPError`.
+- [x] Testy obu modułów: uprawnienia, znikające procesy, granice argumentów,
+      cache migawki, adresy interfejsów, brak sieci, timeout, HTTP i błędne dane.
+      Integracja prawdziwych portów z procesem oraz odczyt lokalnych interfejsów.
+
+Weryfikacja (macOS / Python 3.13): 83 testy zaliczone, 1 systemowy test
+integracyjny pominięty z powodu uprawnień; Ruff lint + format bez błędów,
+Pyrefly 0 błędów. Testy HTTP używają kontrolowanych odpowiedzi; próby z
+rzeczywistą usługą ipify nie wykonano. Pełna matryca systemów nadal w Fazie 6.
 
 ## Faza 3 — `core`: Docker + tunele + tagi `[ ]`
 

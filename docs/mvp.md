@@ -18,10 +18,10 @@ Struktura MVP:
 ```
 portscanner/
   core/        # czysta logika, zero UI (importowalne z CLI/TUI/GUI)
-    model.py       # dataclass PortEntry
+    model.py       # PortEntry, ProcessInfo, LocalIP, ExitIP
     listeners.py   # TCP LISTEN + związane UDP bez peera
     procs.py       # PID -> name/cmdline, obsługa AccessDenied
-    ips.py         # local + global IP
+    ips.py         # adresy interfejsów + jawny odczyt exit IP
     docker.py      # `docker ps` -> mapowania host:container
     cloudflared.py # proces + config.yml + metrics :20241
   cli.py       # typer/rich.table + --json + --kill
@@ -155,7 +155,7 @@ W MVP: warstwa 1 (słownik `port/proces -> tag`). Warstwa 2 jako flaga `--kube` 
 5. **Docker podwaja wiersze.** Mapowanie `0.0.0.0:8080->80` widać jako `docker-proxy` LISTEN na hoście + proces w kontenerze. Nie sumuj tego jako "2 usługi" — złącz w jeden wiersz `8080 (host) -> 80 (cont @web)`.
 6. **Cloudflare Tunnel nie słucha.** `cloudflared` robi połączenie **wychodzące** do Cloudflare, więc nie ma LISTEN do znalezienia. Wykrywasz go tylko pośrednio: proces + `config.yml` (ingress `hostname -> localhost:PORT`) + metryki `:20241`. Brak procesu = brak tunelu, nawet jeśli DNS w Cloudflare dalej wskazuje na tunel.
 7. **Uprawnienia tną widoczność.** Wiersze mogą mieć `pid=None`, a na Linuxie psutil może też pominąć niedostępne gniazda bez błędu. Na macOS odczyt całej listy wymaga root. Odmowa całego odczytu zgłasza `ListenerAccessDenied`, inne błędy systemowe `ListenerScanError`; UI ma je pokazać zamiast komunikatu o braku portów. Brak automatycznego podnoszenia uprawnień. Źródło: [psutil](https://psutil.io/api/#psutil.net_connections).
-8. **Global IP kłamie za NAT/VPN.** `api.ipify.org` zwraca exit IP (VPN/proxy/operator CGNAT), nie "prawdziwe IP routera". Podpisz w UI `exit IP (widziane z internetu)`.
+8. **Global IP kłamie za NAT/VPN.** Jawne `fetch_exit_ip()` odpytuje `api64.ipify.org` (IPv4/IPv6) i zwraca exit IP użytej trasy (VPN/proxy/operator CGNAT), nie "prawdziwe IP routera". Etykieta wyniku: `exit IP (widziane z internetu)`. Żądanie ujawnia usługodawcy adres wyjściowy; odczyty lokalne go nie wykonują. Timeout operacji gniazda domyślnie 3 s (nie twardy deadline DNS/całego wywołania), bez retry, błędy jako `ExitIPError`. W przyszłym TUI odczyt poza wątkiem renderowania.
 9. **UDP.** Nie ma stanu `LISTEN`; psutil używa `CONN_NONE`. Pokazuj związane gniazda z niezerowym portem bez zdalnego adresu. Jest to heurystyka: może obejmować klientów używających `sendto`, a pomija gniazda ze stałym peerem. Oznacz `UDP (bez weryfikacji handshake)`; nie wysyłaj pakietów w celu weryfikacji.
 
 ---

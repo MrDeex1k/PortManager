@@ -2,8 +2,8 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Fazy 0 i 1 ukończone.** Istnieją instalowalny pakiet, model `PortEntry`
-> i moduł odczytu lokalnych gniazd TCP/UDP. CLI i TUI są planowane; poniższa tabela
+> **Status: Fazy 0–2 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
+> gniazd TCP/UDP, procesów i adresów IP. CLI i TUI są planowane; poniższa tabela
 > i opis interfejsów pokazują docelowe MVP.
 
 ```text
@@ -98,6 +98,51 @@ Według [dokumentacji psutil](https://psutil.io/api/#psutil.net_connections)
 systemowy odczyt na macOS wymaga root, a na Linuxie niedostępne połączenia mogą
 zostać pominięte bez błędu. Wynik nie gwarantuje pełnej widoczności systemu.
 
+## Procesy i adresy IP (Faza 2)
+
+```python
+from portscanner.core.listeners import collect_listeners
+from portscanner.core.procs import enrich_processes
+from portscanner.core.ips import collect_local_ips
+
+ports = enrich_processes(collect_listeners())  # może zgłosić ListenerScanError
+addresses = collect_local_ips()  # może zgłosić LocalIPError
+```
+
+`enrich_processes()` zwraca nowe wpisy `PortEntry` z polem `process`.
+Wcześniej pole to ma wartość `None` (szczegółów jeszcze nie odczytano).
+`ProcessInfo` zawiera PID, nazwę, argumenty jako tuple oraz status odczytu:
+`ok`, `unknown` (brak PID), `access_denied`, `gone` lub `error`.
+Odmowa odczytu argumentów nie usuwa dostępnej nazwy; zakończenie procesu
+podczas odczytu usuwa częściowe szczegóły. PID odczytywany jest raz na migawkę,
+bez cache między odświeżeniami. Odczyt nie jest atomowy i nie stanowi podstawy
+do kill bez ponownej weryfikacji tożsamości procesu w przyszłej Fazie 5.
+
+`collect_local_ips()` zwraca listę `LocalIP(interface, address, family)`,
+w tym loopback, VPN i link-local. Zachowuje scope IPv6 zwrócony przez OS.
+Nie wybiera jednego głównego adresu i nie wykonuje żądań sieciowych.
+
+Exit IP pobiera się **osobno i jawnie**:
+
+```python
+from portscanner.core.ips import ExitIPError, fetch_exit_ip
+
+try:
+    result = fetch_exit_ip(timeout=3.0)  # żądanie HTTPS do api64.ipify.org
+    print(result.label, result.address)
+except ExitIPError as error:
+    print(error)
+```
+
+Etykieta wyniku to **exit IP (widziane z internetu)**. Usługa
+[ipify](https://www.ipify.org/) zwraca jeden IPv4 lub IPv6 zależnie od użytej
+trasy, także VPN/proxy. Zapytanie ujawnia usłudze adres wyjściowy tej trasy.
+Nie oznacza to adresu routera ani dostępności portów z internetu.
+Funkcja nie ponawia żądań, ogranicza odpowiedź do 64 bajtów i waliduje publiczny IP.
+Timeout dotyczy operacji gniazda, nie stanowi twardego limitu całej funkcji
+(w szczególności DNS); przyszły TUI powinien wykonać ją poza wątkiem renderowania.
+Awaria tej usługi nie wpływa na odczyty lokalne.
+
 ## Dokumentacja
 
 | Plik | O czym |
@@ -108,12 +153,15 @@ zostać pominięte bez błędu. Wynik nie gwarantuje pełnej widoczności system
 
 ## Status
 
-Fazy 0 i 1 ukończone; następna jest Faza 2 — szczegóły procesów i adresy IP.
+Fazy 0–2 ukończone; następna jest Faza 3 — Docker, tunele i tagi K8s.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
 obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13:
-35 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
-Test rzeczywistych gniazd własnego procesu jest zaliczony. Testy integracyjne
+83 zaliczone, 1 systemowy test integracyjny pominięty z powodu uprawnień.
+Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
+Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
+na podstawionych odpowiedziach HTTP; testu rzeczywistej usługi nie wykonano.
+Testy integracyjne
 wymagają możliwości tworzenia gniazd loopback w środowisku uruchomienia.
 
 Licencja: [GPLv3](LICENSE) © 2026 Jakub Batycki.

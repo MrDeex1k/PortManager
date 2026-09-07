@@ -14,4 +14,5 @@ def test_socket_without_visible_process_can_be_serialized() -> None:
         "bind": "::",
         "port": 5432,
         "pid": None,
+        "process": None,
     }
