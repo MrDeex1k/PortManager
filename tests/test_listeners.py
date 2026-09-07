@@ -41,6 +41,21 @@ def test_requests_only_internet_sockets(monkeypatch: pytest.MonkeyPatch) -> None
     mock.assert_called_once_with(kind="inet")
 
 
+def test_malformed_address_does_not_discard_other_listeners(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source(
+        monkeypatch,
+        Connection(laddr=Address("not-an-ip", 8081)),
+        Connection(),
+        Connection(family=socket.AF_INET6, laddr=Address("fe80::1%en0", 8082)),
+    )
+    assert collect_listeners() == [
+        PortEntry("tcp", "127.0.0.1", 8080, 42),
+        PortEntry("tcp", "fe80::1%en0", 8082, 42),
+    ]
+
+
 @pytest.mark.parametrize(
     "status",
     [

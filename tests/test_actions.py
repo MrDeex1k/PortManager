@@ -131,6 +131,28 @@ def test_lost_ownership_after_confirmation_is_blocked(
     process.terminate.assert_not_called()
 
 
+def test_changed_secret_still_requires_new_confirmation(process: Mock) -> None:
+    process.cmdline.return_value = ["python3", "server.py", "--token", "first-secret"]
+    target = actions.prepare_kill(PID)
+    assert target.cmdline[-1] == "first-secret"
+    process.cmdline.return_value[-1] = "second-secret"
+    with pytest.raises(actions.ProcessActionError, match="zmieniły"):
+        actions.terminate_target(target)
+    process.terminate.assert_not_called()
+
+
+def test_unreadable_namespace_never_sends_signal(
+    process: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        actions, "_same_namespaces", Mock(side_effect=PermissionError())
+    )
+    with pytest.raises(actions.ProcessActionError):
+        actions.prepare_kill(PID)
+    process.terminate.assert_not_called()
+
+
 def test_timeout_without_force_does_not_kill(process: Mock) -> None:
     target = actions.prepare_kill(PID)
     process.wait.side_effect = psutil.TimeoutExpired(0.1)

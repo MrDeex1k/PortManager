@@ -6,6 +6,7 @@ from dataclasses import replace
 import psutil
 
 from portscanner.core.model import PortEntry, ProcessInfo
+from portscanner.core.redaction import redact_cmdline
 
 
 def read_process(pid: int | None) -> ProcessInfo:
@@ -48,7 +49,7 @@ def read_process(pid: int | None) -> ProcessInfo:
         pid=pid,
         status="access_denied" if denied else "ok",
         name=name,
-        cmdline=cmdline,
+        cmdline=None if cmdline is None else redact_cmdline(cmdline),
     )
 
 

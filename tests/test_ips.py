@@ -42,6 +42,28 @@ def test_no_interfaces_is_empty_list(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ips.collect_local_ips() == []
 
 
+def test_malformed_address_does_not_hide_valid_interfaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        psutil,
+        "net_if_addrs",
+        Mock(
+            return_value={
+                "lo": [SimpleNamespace(family=socket.AF_INET, address="127.0.0.1")],
+                "vpn": [
+                    SimpleNamespace(family=socket.AF_INET6, address="broken-address"),
+                    SimpleNamespace(family=socket.AF_INET6, address="fe80::1%vpn"),
+                ],
+            }
+        ),
+    )
+    assert ips.collect_local_ips() == [
+        LocalIP("lo", "127.0.0.1", "ipv4"),
+        LocalIP("vpn", "fe80::1%vpn", "ipv6"),
+    ]
+
+
 @pytest.mark.parametrize("error", [OSError("failed"), psutil.AccessDenied()])
 def test_local_read_errors_are_explicit(
     monkeypatch: pytest.MonkeyPatch, error: Exception

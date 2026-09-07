@@ -43,6 +43,49 @@ def test_keeps_argument_boundaries_and_empty_cmdline(process_factory: Mock) -> N
     assert read_process(42).cmdline == ()
 
 
+@pytest.mark.parametrize(
+    "flag", ["--token", "--token-file", "--password", "--api-key", "--CLIENT_SECRET"]
+)
+@pytest.mark.parametrize("denied", [False, True])
+def test_sensitive_arguments_never_enter_process_snapshot(
+    process_factory: Mock,
+    flag: str,
+    denied: bool,
+) -> None:
+    args = [
+        "python",
+        "server.py",
+        flag,
+        "private-value",
+        f"{flag}=another-secret",
+        "--name",
+        "a b",
+        "--port=8080",
+        "--token",
+    ]
+    process_factory.return_value.cmdline.return_value = args
+    if denied:
+        process_factory.return_value.name.side_effect = psutil.AccessDenied(42)
+    entries = enrich_processes([PortEntry("tcp", "*", 8080, 42)])
+    process = entries[0].process
+    assert process is not None
+    assert process.status == ("access_denied" if denied else "ok")
+    assert process.cmdline == (
+        "python",
+        "server.py",
+        flag,
+        "***",
+        f"{flag}=***",
+        "--name",
+        "a b",
+        "--port=8080",
+        "--token",
+    )
+    payload = json.dumps(asdict(entries[0]))
+    assert "private-value" not in payload and "another-secret" not in payload
+    assert args[3] == "private-value"  # Odczyt psutil nie jest mutowany.
+
+
 @pytest.mark.parametrize("field", ["name", "cmdline"])
 def test_access_denied_preserves_other_field(process_factory: Mock, field: str) -> None:
     getattr(process_factory.return_value, field).side_effect = psutil.AccessDenied(42)

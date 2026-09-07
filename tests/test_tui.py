@@ -11,7 +11,7 @@ from threading import Event
 from unittest.mock import Mock
 
 import pytest
-from textual.widgets import Button, Checkbox
+from textual.widgets import Button, Checkbox, Static
 
 from portscanner.core.actions import KillTarget, ProcessActionError
 from portscanner.core.model import (
@@ -292,7 +292,13 @@ def test_kill_cancel_and_default_focus_never_signal(
 def test_kill_confirms_captured_identity_despite_refresh(
     source: Mock, monkeypatch: pytest.MonkeyPatch, force: bool
 ) -> None:
-    target = KillTarget(43, 100.0, "python", "/bin/python", ("python", "server.py"))
+    target = KillTarget(
+        43,
+        100.0,
+        "python",
+        "/bin/python",
+        ("python", "server.py", "--password=private-value"),
+    )
     prepare, terminate = Mock(return_value=target), Mock()
     monkeypatch.setattr(tui, "prepare_kill", prepare)
     monkeypatch.setattr(tui, "terminate_target", terminate)
@@ -304,6 +310,10 @@ def test_kill_confirms_captured_identity_despite_refresh(
             await pilot.press("k")
             await wait_until(lambda: isinstance(app.screen, KillScreen))
             await pilot.pause()
+            details = "\n".join(
+                str(widget.content) for widget in app.screen.query(Static)
+            )
+            assert "private-value" not in details and "--password=***" in details
             source.return_value = replace(source.return_value, ports=())
             app.action_refresh()
             await wait_until(lambda: not app._refreshing)

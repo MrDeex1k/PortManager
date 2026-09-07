@@ -249,9 +249,14 @@ def test_kill_decline_or_eof_never_sends_signal(
 def test_force_still_confirms_and_uses_prepared_identity(
     source: Mock, action: tuple[Mock, Mock]
 ) -> None:
+    action[0].return_value = replace(
+        action[0].return_value,
+        cmdline=("python", "server.py", "--token", "private-value"),
+    )
     result = runner.invoke(cli.app, ["--cli", "--kill", "42", "--force"], input="y\n")
     assert result.exit_code == 0, result.output
     assert "python" in result.stderr and "server.py" in result.stderr
+    assert "private-value" not in result.output and "***" in result.stderr
     assert "po timeout także kill" in result.stderr
     action[1].assert_called_once_with(action[0].return_value, force=True, timeout=3.0)
     source.assert_not_called()

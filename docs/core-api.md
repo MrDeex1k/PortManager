@@ -34,6 +34,10 @@ Interfejs musi pokazać raporty; nie może zamieniać błędu odczytu na „brak
 Błędy operacyjne źródeł znajdują się w raportach i nie blokują pozostałych danych.
 Nieprawidłowy argument `timeout` zgłasza `ValueError`. Limit dotyczy pojedynczej
 operacji, nie całej migawki. Wywołania są synchroniczne; TUI wykonuje je przez workera poza wątkiem UI.
+
+Nieparsowalny adres IP pomija tylko pojedynczy rekord gniazda lub interfejsu;
+pozostałe dane nadal są przetwarzane. Błędy odczytu systemowego pozostają
+odpowiednio `ListenerScanError` / `LocalIPError` i trafiają do raportów źródeł.
 Wyłączenie `docker`/`tunnels` pomija dane źródło. `metrics=False` pozostawia
 wykrywanie procesów i konfiguracji bez HTTP. Exit IP nie jest częścią migawki
 ani jej automatycznego odświeżania — nadal służy do tego jawne `fetch_exit_ip()`.
@@ -60,6 +64,22 @@ z przestrzeni kontenera do hosta. Reguły tunelu dopasowujemy tylko do TCP,
 zgodnego portu i lokalnego adresu; `localhost` oznacza loopback/wildcard.
 Nie rozwiązujemy nazw origin przez DNS. Reguły zachowują kolejność i `path`;
 przypisanie reguły do portu nie ocenia priorytetów routingu ani osiągalności hostname.
+
+## Prywatność argumentów procesów
+
+`read_process()` maskuje wartości znanych flag przed utworzeniem `ProcessInfo`.
+Dotyczy to `--token`, `--token-file`, `--access-token`, `--auth-token`,
+`--password`, `--passwd`, `--api-key`, `--secret` i `--client-secret`, w postaci
+`--flaga wartość` oraz `--flaga=wartość`. Nazwy są rozpoznawane bez wielkości
+liter, także z `_` zamiast `-`. Wartość jest zastępowana przez `***`, a granice
+argumentów i pozostałe argumenty są zachowane.
+
+Migawki, filtr po argumentach i eksport JSON używają zamaskowanych danych.
+Dialogi kończenia procesu w CLI/TUI korzystają z tego samego maskowania,
+ale wewnętrzny `KillTarget` zachowuje pełne argumenty do ponownej weryfikacji.
+Zmiana sekretu po potwierdzeniu oznacza zmianę tożsamości i wymaga nowej zgody.
+Maskowanie nie rozpoznaje wszystkich sposobów przekazywania sekretów: dowolne
+argumenty pozycyjne, niestandardowe flagi i sekrety w URL mogą pozostać widoczne.
 
 ## Docker
 
@@ -121,6 +141,10 @@ wyłącznie na loopback (wildcard jest zamieniany na loopback tej samej rodziny)
 Nie zgadujemy właściciela stałego portu 20241. Obsługiwane są zatem także porty
 20242–20245 i niestandardowe. Gniazda związane wyłącznie z adresem LAN są pomijane.
 HTTP nie korzysta z proxy, DNS ani przekierowań; odpowiedź ma limit 1 MiB.
+Próby endpointów jednego PID mają wspólny budżet `timeout`, odmierzany zegarem
+monotonicznym. Każda kolejna próba otrzymuje pozostały czas; po jego wyczerpaniu
+nie rozpoczynamy kolejnych żądań. Nadal nie jest to twardy deadline całej
+migawki ani pojedynczego odczytu HTTP (timeout gniazda dotyczy operacji I/O).
 Parsujemy `cloudflared_tunnel_ha_connections`. Brak dostępu do gniazd PID oznacza
 brak metryk, a nie zero połączeń. Nie wykonujemy zapytań do publicznych hostname.
 
