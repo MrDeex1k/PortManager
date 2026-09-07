@@ -53,7 +53,11 @@ Szczegóły: [CLI](docs/cli.md).
 
 ### GUI — do klikania 🖱️
 
-Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`. Status: **po MVP**.
+Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`.
+Status: **zaplanowana Faza 7, po MVP** — implementacja jeszcze nie rozpoczęta.
+Plan obejmuje szkielet okna, połączenie z core, tabelę i szczegóły portów,
+eksport oraz kończenie procesu z potwierdzeniem, a następnie weryfikację na macOS.
+Szczegóły: [Faza 7 w planie](docs/plan-mvp.md).
 
 ---
 

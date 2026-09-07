@@ -115,6 +115,9 @@ Tak, **pod warunkiem rozdziału z §1**. Wtedy:
 - GUI to trzeci renderer — dokładasz warstwę UI, nie ruszasz `core/`.
 - Wejście: `portscanner --gui`; w środowisku graficznym ikonka (`.desktop` / skrót w Menu Start / `.app`) odpala ten sam GUI — pod spodem zawsze ta sama logika `core/`.
 - **Decyzja: GUI w `pywebview` + Vue** (lekkie — systemowy webview: WebKit/WebView2/GTK, bez bundlowanego Chromium; nowoczesny wygląd z ekosystemu Vue). Koszt: drugi toolchain (Node/npm/vite) **tylko** dla GUI + mostek JS↔Python. Dlatego GUI jako osobny target builda, nie osobna logika.
+- Realizacja jako **Faza 7**, podzielona na szkielet aplikacji, połączenie z core,
+  widok portów, operacje oraz weryfikację i dokumentację. Bieżący zakres to macOS;
+  Windows/Linux po udostępnieniu środowisk. Szczegóły w [planie faz](plan-mvp.md).
 - Odrzucone: `PySide6` (Qt = +150 MB do instalatora, mimo natywnego wyglądu), `Tkinter` (stdlib, ale archaiczny), `NiceGUI` (najszybszy prototyp, najsłabsze pakowanie — lokalny serwer FastAPI w dystrybucji).
 
 Czego nie robić: nie pisać logiki zbierania w kodzie Textual ani Qt. Wszystko w `core/`, UI tylko wyświetla.

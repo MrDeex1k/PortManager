@@ -188,9 +188,73 @@ Szczegółowa matryca i ograniczenia odczytu macOS: `docs/release.md`.
 
 ---
 
-## Po MVP (kolejność orientacyjna)
+## Faza 7 — GUI desktopowe `[ ]` (po MVP, zakres macOS)
 
-1. GUI: `pywebview` + Vue, flaga `--gui` + ikonka desktopowa (osobny target builda)
-2. K8s warstwa 2 (`--kube`)
-3. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §12)
-4. Binarki (PyInstaller) + podpisywanie
+Następna faza po ukończeniu MVP na macOS. Status: zaplanowana, jeszcze
+niezaimplementowana. Stack zgodny z `docs/mvp.md` §5: `pywebview` + Vue.
+GUI jest trzecim interfejsem do istniejącego `core/`; CLI i TUI pozostają dostępne.
+Testy Windows/Linux nadal czekają na środowiska, zgodnie z decyzją użytkownika.
+
+### 7.1 — szkielet aplikacji
+
+- [ ] Flaga `portscanner --gui` uruchamia okno pywebview z widokiem Vue.
+      Brak flag nadal uruchamia TUI, a `--cli` pozostaje trybem jednorazowym.
+- [ ] Osobny frontend i sposób budowania zasobów GUI. Zależności GUI są
+      opcjonalne; samo CLI/TUI nie wymaga Node ani instalowania pywebview.
+- [ ] Zdefiniowane uruchamianie deweloperskie i ładowanie zbudowanych zasobów
+      lokalnych, z czytelnym komunikatem przy braku zależności GUI.
+
+### 7.2 — połączenie GUI z core
+
+- [ ] Mostek Python–JavaScript udostępnia konkretne operacje i serializuje
+      istniejące modele; bez powielania logiki odczytu, filtrów i polityki procesów.
+- [ ] Zbieranie migawek i operacje procesów działają poza wątkiem interfejsu.
+      Odświeżenia nie nakładają się i nie zastępują nowszych danych starszym wynikiem.
+- [ ] Raporty źródeł, błędy i ograniczenia uprawnień są widoczne w oknie.
+      GUI nie wykonuje automatycznego zapytania o exit IP ani nie podnosi uprawnień.
+- [ ] `core/` zachowuje niezależność od wszystkich interfejsów.
+
+### 7.3 — widok portów
+
+- [ ] Tabela pokazuje protokół, bind, port, PID, proces, mapowania Docker/Compose,
+      reguły tuneli, tagi i źródło danych, zgodnie z kontraktem CLI/TUI.
+- [ ] Filtr tekstowy oraz `:PORT` i `pid:PID`, sortowanie i automatyczne
+      odświeżanie co 2 s z zachowaniem zaznaczonego wpisu, jeśli nadal istnieje.
+- [ ] Szczegóły zaznaczonego wpisu: argumenty i stan odczytu procesu,
+      dane kontenera/Compose oraz reguły tuneli i ich ograniczenia.
+- [ ] Czytelne stany: trwa odczyt, brak dopasowań, częściowe dane i błąd źródła;
+      lokalne IP prezentowane osobno od bindu i hostname tunelu.
+
+### 7.4 — operacje
+
+- [ ] Eksport widocznej, posortowanej migawki do JSON o tym samym kontrakcie
+      co CLI/TUI, z obsługą wyboru miejsca zapisu, kolizji pliku i błędów.
+- [ ] Kończenie procesu przez `prepare_kill` i `terminate_target`:
+      domyślne anulowanie, dialog pokazujący konkretny cel, jawna zgoda
+      na force i ponowna weryfikacja w core przed sygnałem.
+- [ ] Zmiana zaznaczenia lub odświeżenie podczas dialogu nie zmienia celu zgody.
+      Odmowa polityki, zniknięcie procesu i timeout są obsługiwane w GUI.
+
+### 7.5 — weryfikacja i dokumentacja na macOS
+
+- [ ] Testy mostka i interakcji: start, filtr, sortowanie, odświeżenie, szczegóły,
+      eksport oraz zgoda/anulowanie operacji procesu; regresja CLI/TUI.
+- [ ] Sprawdzenie responsywności podczas wolnych odczytów i operacji, błędów
+      uprawnień oraz poprawnego zamykania okna.
+- [ ] Weryfikacja GUI ze zbudowanymi zasobami poza repozytorium oraz uruchamiania
+      przez skrót/ikonkę na macOS, korzystające z tego samego wejścia `--gui`.
+- [ ] Ruff, Pyrefly, pytest i kontrole frontendu bez błędów; dokumentacja PL
+      instalacji, budowania i obsługi GUI. Commity pozostają po angielsku.
+
+Warunek zakończenia: trzy działające interfejsy — CLI, TUI i GUI — korzystają
+z tej samej logiki core, a GUI ma zweryfikowany na macOS pełny przepływ od
+odczytu portów do eksportu i operacji procesu z potwierdzeniem. Weryfikacja
+Windows/Linux oraz samodzielne binarki i podpisywanie pozostają osobnymi pracami.
+
+---
+
+## Po Fazie 7 (kolejność orientacyjna)
+
+1. K8s warstwa 2 (`--kube`)
+2. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §12)
+3. Binarki (PyInstaller) + podpisywanie
