@@ -9,7 +9,7 @@
 ## 1. Środowisko Pythona i wersja (zweryfikowane 2026-09-06)
 
 Wniosek:
-- Baseline `>=3.12
+- Baseline `>=3.12`.
 - Dev pin: **3.13** (`.python-version` = `3.13`).
 - Format: `pyproject.toml` + `uv.lock` + `.python-version`. Zero `requirements.txt`, zero conda.
 
@@ -207,7 +207,7 @@ select = ["E", "F", "I", "UP", "B"]
 Uwagi:
 - Ruff zastępuje flake8 + Black + isort jednym binarkiem — mniej depów do pakowania.
 - Pyrefly (checker Mety, napisany w Ruście) zamiast Pyrighta: **zero Node w runtime**, binarka z PyPI, bardzo szybki. Świadoma zamiana z 2026-09 — Pyright wymaga Node, bo sam jest napisany w TS.
-- Po MVP dorzucić Ruff do `lefthook.yml` jako job `pre-commit` (Pyrefly zostaje ręczny/okazjonalny — pełny `check` całego projektu jest wolniejszy).
+- Ruff jest blokującym jobem `pre-commit` od Fazy 0 (Pyrefly uruchamiany ręcznie na koniec każdej fazy).
 
 ---
 

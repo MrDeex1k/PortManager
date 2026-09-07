@@ -1,6 +1,6 @@
 # Plan MVP — fazy
 
-Stan na 2026-09-06. Źródło decyzji: `docs/mvp.md`.
+Stan na 2026-09-07. Źródło decyzji: `docs/mvp.md`.
 
 Kontrakt wejścia (obowiązuje od Fazy 4, GUI po MVP):
 - `portscanner` → TUI (domyślne)
@@ -17,18 +17,33 @@ Zasady przez cały plan:
 
 ---
 
-## Faza 0 — fundament repo `[ ]`
+## Faza 0 — fundament repo `[x]`
 
-- [ ] §9 w całości zaklepany 2026-09-06; na starcie Fazy 0 zweryfikować najnowsze stabilne wersje (`uv lock`) zamiast pinu z §2
-- [ ] Zacommitować obecny stan (`LICENSE`, `lefthook.yml`, `scripts/`, `docs/`)
-- [ ] `lefthook install` + ruleset `Require commit message pattern` na GitHubie
-- [ ] `uv init` → `pyproject.toml` (`[project.scripts]` z entry `portscanner`), `.python-version=3.13`
-- [ ] `uv add psutil pyyaml textual typer` + `uv add --dev ruff pyrefly pytest`, `uv sync`
-- [ ] Ruff jako blokujący `pre-commit` w `lefthook.yml`
-- [ ] Szkielet `portscanner/core/model.py` (`PortEntry`) + pierwszy test `pytest`
-- [ ] Decyzja zapisana: dystrybucja MVP = `pipx` (`pipx install git+...`); binarki po stabilizacji
-- [ ] Decyzja zapisana: CI = self-hosted Actions (Ubuntu x86 + RPi 5B ARM64);
+- [x] Decyzje MVP z §9 zatwierdzone; MCP pozostaje poza MVP.
+      `uv lock --upgrade --prerelease disallow` (2026-09-07): bez zmian wersji;
+      psutil 7.2.2, PyYAML 6.0.3, Textual 8.2.8, Typer 0.27.2,
+      Ruff 0.16.6, Pyrefly 1.2.0, pytest 9.1.1.
+- [x] Zacommitować fundament repo (`LICENSE`, `lefthook.yml`, `scripts/`, `docs/`)
+- [x] `lefthook install`: lokalne `commit-msg` i `pre-commit`.
+      Zgodnie z `conventional-commits.md` zdalna walidacja formatu nie jest wymagana
+      w przyjętym wariancie bez Actions. Stary wymóg rulesetu zastąpiono tą decyzją.
+      Odczyt GitHub API 2026-09-07: brak rulesetów; ochrona historii opisana
+      w dokumentacji jest instrukcją konfiguracji, a nie wdrożonym zabezpieczeniem.
+- [x] `pyproject.toml` z entry `portscanner`, `.python-version=3.13`,
+      pakiet `portscanner/` i backend Hatchling; komenda `--help` działa.
+- [x] Zależności runtime i dev zapisane w `pyproject.toml` i `uv.lock`; `uv sync`
+- [x] Ruff jako blokujący `pre-commit` w `lefthook.yml`
+- [x] Szkielet `portscanner/core/model.py` (`PortEntry`) + pierwszy test `pytest`
+- [x] Decyzja zapisana: dystrybucja MVP = `pipx` (`pipx install git+...`); binarki po stabilizacji
+- [x] Decyzja zapisana: CI = self-hosted Actions (Ubuntu x86 + RPi 5B ARM64);
       status: maszyny w przygotowaniu — do tego czasu matryca manualna
+
+Weryfikacja Fazy 0 (macOS, Python 3.13): Ruff lint + format bez błędów,
+Pyrefly 0 błędów, pytest 1 test zaliczony; zbudowano sdist i wheel z tego sdist.
+Wheel zainstalowano w oddzielnym środowisku i uruchomiono spoza repo:
+`--help` zwraca 0, brak flag i `--cli` zwracają 1 z jawnym komunikatem
+o niezaimplementowanym interfejsie. Walidator commitów akceptuje poprawny
+temat i odrzuca błędny. Pełna matryca systemów pozostaje w Fazie 6.
 
 ## Faza 1 — `core`: słuchacze `[ ]`
 
