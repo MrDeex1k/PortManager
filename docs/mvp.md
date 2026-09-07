@@ -19,7 +19,7 @@ Struktura MVP:
 portscanner/
   core/        # czysta logika, zero UI (importowalne z CLI/TUI/GUI)
     model.py       # dataclass PortEntry
-    listeners.py   # psutil.net_connections -> LISTEN
+    listeners.py   # TCP LISTEN + związane UDP bez peera
     procs.py       # PID -> name/cmdline, obsługa AccessDenied
     ips.py         # local + global IP
     docker.py      # `docker ps` -> mapowania host:container
@@ -148,15 +148,15 @@ W MVP: warstwa 1 (słownik `port/proces -> tag`). Warstwa 2 jako flaga `--kube` 
 
 ## 8. Najważniejsze kwestie "logiczne" (tu się wywraca większość takich narzędzi)
 
-1. **LISTEN ≠ ESTABLISHED.** Pokazuj tylko `LISTEN` (gniazda serwerowe). `ESTABLISHED/TIME_WAIT` to połączenia wychodzące/chwilowe — ich pokazywanie zalewa tabelę śmieciem (przeglądarka ma ich setki).
-2. **Efemeryczne vs serwery.** Porty >49152 w stanie innym niż LISTEN ignoruj. To są losowe porty klienckie.
-3. **Dual-stack IPv4/IPv6.** Ten sam serwer widać dwa razy: `0.0.0.0:8080` i `[::]:8080`. Grupuj w jeden wiersz (`*:8080`), inaczej użytkownik myśli że ma 2x więcej usług.
+1. **LISTEN ≠ ESTABLISHED.** Dla TCP pokazuj tylko `LISTEN`; `ESTABLISHED` obejmuje także zaakceptowane połączenia serwera, nie tylko połączenia wychodzące. UDP ma osobną regułę z punktu 9.
+2. **Efemeryczne vs serwery.** Nie filtruj po numerze portu: serwer może słuchać również na 49152–65535. TCP filtrujemy po stanie, UDP po związaniu i braku zdalnego adresu.
+3. **Dual-stack IPv4/IPv6.** Grupuj wyłącznie parę `0.0.0.0` + `::` z tym samym znanym PID, protokołem i portem w `bind="*"` (port pozostaje osobnym polem). Nie łącz różnych/nieznanych PID ani konkretnych adresów. To grupowanie prezentacyjne, nie dowód ustawienia `IPV6_V6ONLY`; `group_dual_stack=False` zachowuje osobne adresy.
 4. **Znaczenie BINDA:** `127.0.0.1:5432` = tylko lokalnie (bezpieczne), `0.0.0.0:5432` = z całej sieci/LAN (ryzyko), konkretne `192.168.1.10:3000` = tylko ten interfejs. To jest ważniejsza kolumna niż sam numer portu — pokaż ją wprost.
 5. **Docker podwaja wiersze.** Mapowanie `0.0.0.0:8080->80` widać jako `docker-proxy` LISTEN na hoście + proces w kontenerze. Nie sumuj tego jako "2 usługi" — złącz w jeden wiersz `8080 (host) -> 80 (cont @web)`.
 6. **Cloudflare Tunnel nie słucha.** `cloudflared` robi połączenie **wychodzące** do Cloudflare, więc nie ma LISTEN do znalezienia. Wykrywasz go tylko pośrednio: proces + `config.yml` (ingress `hostname -> localhost:PORT`) + metryki `:20241`. Brak procesu = brak tunelu, nawet jeśli DNS w Cloudflare dalej wskazuje na tunel.
-7. **Uprawnienia tną widoczność.** Bez admina część wierszy będzie miała `PID ?`. To nie błąd zbierania — tak działa OS. Pokaż to jawnie, nie ukrywaj.
+7. **Uprawnienia tną widoczność.** Wiersze mogą mieć `pid=None`, a na Linuxie psutil może też pominąć niedostępne gniazda bez błędu. Na macOS odczyt całej listy wymaga root. Odmowa całego odczytu zgłasza `ListenerAccessDenied`, inne błędy systemowe `ListenerScanError`; UI ma je pokazać zamiast komunikatu o braku portów. Brak automatycznego podnoszenia uprawnień. Źródło: [psutil](https://psutil.io/api/#psutil.net_connections).
 8. **Global IP kłamie za NAT/VPN.** `api.ipify.org` zwraca exit IP (VPN/proxy/operator CGNAT), nie "prawdziwe IP routera". Podpisz w UI `exit IP (widziane z internetu)`.
-9. **UDP.** `psutil` pokaże UDP-LISTEN, ale nie potwierdzisz connectem jak TCP. Oznacz `UDP (bez weryfikacji handshake)`.
+9. **UDP.** Nie ma stanu `LISTEN`; psutil używa `CONN_NONE`. Pokazuj związane gniazda z niezerowym portem bez zdalnego adresu. Jest to heurystyka: może obejmować klientów używających `sendto`, a pomija gniazda ze stałym peerem. Oznacz `UDP (bez weryfikacji handshake)`; nie wysyłaj pakietów w celu weryfikacji.
 
 ---
 

@@ -9,6 +9,7 @@ class PortEntry:
     """Migawka gniazda; brak PID oznacza nieznanego właściciela.
 
     Bind przechowuje sam adres (IPv4 lub IPv6), port jest osobnym polem.
+    Wartość '*' oznacza zgrupowaną parę wildcard IPv4/IPv6 tego samego PID.
     Model nie wykonuje odczytów systemowych ani nie zależy od UI.
     """
 

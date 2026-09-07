@@ -2,8 +2,8 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Faza 0 ukończona.** Istnieją instalowalny pakiet, model `PortEntry`
-> i pierwszy test. Skanowanie, CLI i TUI są dopiero planowane; poniższa tabela
+> **Status: Fazy 0 i 1 ukończone.** Istnieją instalowalny pakiet, model `PortEntry`
+> i moduł odczytu lokalnych gniazd TCP/UDP. CLI i TUI są planowane; poniższa tabela
 > i opis interfejsów pokazują docelowe MVP.
 
 ```text
@@ -71,7 +71,32 @@ uv build
 Pakowanie używa Hatchling i jawnego `[build-system]`, wymaganego dla komendy
 pakietu przez [uv](https://docs.astral.sh/uv/concepts/projects/config/#build-systems).
 Dystrybucja MVP pozostaje przez `pipx install git+https://github.com/MrDeex1k/PortManager.git`.
-Obecny etap zapewnia tylko szkielet; pełny interfejs będzie dostępny po dalszych fazach.
+Pełny interfejs będzie dostępny po dalszych fazach.
+
+## Odczyt portów z Pythona (Faza 1)
+
+```python
+from portscanner.core.listeners import ListenerScanError, collect_listeners
+
+try:
+    for entry in collect_listeners():
+        print(entry)
+except ListenerScanError as error:
+    print(error)
+```
+
+`collect_listeners()` zwraca `list[PortEntry]`: TCP w stanie `LISTEN` oraz
+związane gniazda UDP bez zdalnego adresu. Nie wysyła pakietów. Wysokie porty
+nie są odrzucane; UDP nie potwierdza obecności serwera ani handshake.
+Pary wildcard IPv4/IPv6 tego samego znanego PID, protokołu i portu są
+prezentowane jako `bind="*"`. `group_dual_stack=False` zachowuje osobne adresy.
+
+Odmowa odczytu całej listy zgłasza `ListenerAccessDenied` (podklasę
+`ListenerScanError`); pozostałe błędy systemowe zgłaszają `ListenerScanError`.
+Brak widocznego właściciela jest reprezentowany przez `pid=None`.
+Według [dokumentacji psutil](https://psutil.io/api/#psutil.net_connections)
+systemowy odczyt na macOS wymaga root, a na Linuxie niedostępne połączenia mogą
+zostać pominięte bez błędu. Wynik nie gwarantuje pełnej widoczności systemu.
 
 ## Dokumentacja
 
@@ -83,9 +108,12 @@ Obecny etap zapewnia tylko szkielet; pełny interfejs będzie dostępny po dalsz
 
 ## Status
 
-Faza 0 ukończona; następna jest Faza 1 — zbieranie lokalnych portów.
+Fazy 0 i 1 ukończone; następna jest Faza 2 — szczegóły procesów i adresy IP.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
-obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13.
+obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13:
+35 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
+Test rzeczywistych gniazd własnego procesu jest zaliczony. Testy integracyjne
+wymagają możliwości tworzenia gniazd loopback w środowisku uruchomienia.
 
 Licencja: [GPLv3](LICENSE) © 2026 Jakub Batycki.

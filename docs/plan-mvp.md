@@ -45,11 +45,28 @@ Wheel zainstalowano w oddzielnym środowisku i uruchomiono spoza repo:
 o niezaimplementowanym interfejsie. Walidator commitów akceptuje poprawny
 temat i odrzuca błędny. Pełna matryca systemów pozostaje w Fazie 6.
 
-## Faza 1 — `core`: słuchacze `[ ]`
+## Faza 1 — `core`: słuchacze `[x]`
 
-- [ ] `listeners.py`: `psutil.net_connections` → tylko `LISTEN`
-- [ ] Grupowanie dual-stack (`*:port`), odrzucanie efemerycznych (§8)
-- [ ] Testy `pytest`: grupowanie, filtrowanie, parsowanie
+- [x] Kontrakt: `collect_listeners(*, group_dual_stack=True) -> list[PortEntry]`;
+      błędy odczytu jako `ListenerScanError`, odmowa dostępu jako jego podklasa
+      `ListenerAccessDenied`, bez udawania pustej listy i bez podnoszenia uprawnień.
+- [x] `listeners.py`: `psutil.net_connections(kind="inet")` → TCP tylko `LISTEN`;
+      UDP: związane gniazdo bez zdalnego adresu, nie potwierdzony serwer.
+- [x] Mapowanie IPv4/IPv6, zachowanie scope IPv6 i `pid=None`, pomijanie
+      gniazd niezwiązanych, portu 0 i nieobsługiwanych rodzin/typów.
+- [x] Filtrowanie po stanie/rodzaju gniazda, nie po numerze portu:
+      serwery na portach 49152–65535 pozostają widoczne.
+- [x] Grupowanie wyłącznie par `0.0.0.0` + `::` z tym samym znanym PID,
+      protokołem i portem jako `bind="*"`; opcja wyłączenia grupowania.
+      Usuwanie identycznych wpisów i stabilna kolejność wyników.
+- [x] Testy jednostkowe filtrowania, adresów, grupowania, kolejności i błędów;
+      test integracyjny prawdziwych gniazd TCP/UDP.
+
+Weryfikacja (macOS / Python 3.13): 35 testów zaliczonych, 1 pominięty
+(systemowy odczyt wymaga dodatkowych uprawnień). Test własnego procesu używa
+rzeczywistych danych `psutil.Process().net_connections()` i podstawia jedynie
+źródło odczytu; nie jest dowodem pełnego odczytu systemowego. Ruff lint + format
+bez błędów, Pyrefly 0 błędów. Pełna matryca systemów pozostaje w Fazie 6.
 
 ## Faza 2 — `core`: procesy + IP `[ ]`
 

@@ -13,11 +13,11 @@ def status(
         bool, typer.Option("--cli", help="Tryb CLI (planowany w Fazie 4).")
     ] = False,
 ) -> None:
-    """PortScanner: fundament repo gotowy, skanowanie w przygotowaniu."""
+    """PortScanner: odczyt portów dostępny w core, interfejsy w przygotowaniu."""
     mode = "CLI" if cli else "TUI"
     typer.echo(
         f"PortScanner: tryb {mode} nie jest jeszcze zaimplementowany. "
-        "Ukończono Fazę 0; plan: docs/plan-mvp.md.",
+        "Ukończono Fazy 0 i 1; plan: docs/plan-mvp.md.",
         err=True,
     )
     raise typer.Exit(code=1)
