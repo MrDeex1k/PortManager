@@ -26,6 +26,8 @@ portscanner/
     cloudflared.py # proces + config.yml + metryki loopback przypisane PID
     k8s.py         # heurystyczne tagi po procesie/protokole/porcie
     snapshot.py    # scalanie źródeł i niezależne raporty błędów
+    filtering.py   # wspólne filtry portów
+    actions.py     # polityka kończenia procesów dla CLI/TUI
   cli.py       # typer/rich.table + --json + --kill
   tui.py       # textual DataTable
 ```
@@ -72,7 +74,7 @@ Zasady: zależności tylko przez `uv add`, nigdy ręczna edycja `uv.lock`. Bump 
 
 | | CLI | TUI |
 |---|---|---|
-| Tryb | jednorazowy: `portscanner --json`, koniec | interaktywny: tabela żyje, odświeżanie co 2 s |
+| Tryb | jednorazowy: `portscanner --cli --json`, koniec | interaktywny: tabela żyje, odświeżanie co 2 s |
 | Użycie | skrypty, CI, `grep`, eksport | człowiek patrzy, filtruje, sortuje, ubija proces |
 | Zależności | stdlib + psutil + typer/rich | + textual/rich (cięższe, większe binarki) |
 | Testowanie/pakowanie | trywialne | trzeba testować render na 3 OS-ach |
@@ -85,9 +87,9 @@ Zasady: zależności tylko przez `uv add`, nigdy ręczna edycja `uv.lock`. Bump 
 
 ### 4.1. CLI (Typer + Rich)
 
-- `typer`: komendy z type-hintów, `portscanner [--cli] [--json] [--filter :8080] [--kill PID --force]`, darmowy `--help` i walidacja.
+- `typer`: komendy z type-hintów, `portscanner --cli [--json] [--filter :8080]` lub `portscanner --cli --kill PID [--force]`, darmowy `--help` i walidacja.
 - Render: `rich.table.Table` albo czysty `print` (żeby `--json | jq` działało bez ANSI — wykryj `isatty` / flagę `--no-color`).
-- Tryb `--json`: wypisz `list[PortEntry]` jako JSON, kod wyjścia `0`. To jest kontrakt dla przyszłego GUI/skryptów.
+- Tryb `--json`: wypisz `list[PortEntry]` jako JSON na stdout; raporty źródeł na stderr. Kod 0 przy udanym odczycie listeners, 1 przy jego błędzie (nawet gdy JSON zawiera częściowe dane), 2 przy błędnych argumentach. Szczegóły w [CLI](cli.md).
 - Odświeżanie: brak (one-shot). Opcjonalnie `--watch 2` (pętla + `clear`).
 
 ### 4.2. TUI (Textual)
@@ -118,12 +120,13 @@ Czego nie robić: nie pisać logiki zbierania w kodzie Textual ani Qt. Wszystko 
 
 ## 6. Czy aplikacja może "ubijać" procesy na portach?
 
-Tak, i to jest łatwe technicznie, trudne odpowiedzialnie.
+W Fazie 4 wdrożono CLI i wspólną politykę w `core/actions.py`. Szczegóły
+allowlisty, potwierdzeń i ograniczeń są w [CLI](cli.md). TUI korzysta z niej w Fazie 5.
 
-- Mechanizm: `psutil.Process(pid).terminate()` (SIGTERM / `TerminateProcess`), po timeout `kill()` (SIGKILL). Najpierw łagodnie, potem twardo, z potwierdzeniem w UI.
+- Mechanizm: `psutil.Process(pid).terminate()` (SIGTERM / `TerminateProcess`), po timeout `kill()` (SIGKILL) tylko za zgodą `--force`. Na Windows także `terminate()` kończy twardo. Każda operacja wymaga potwierdzenia w UI.
 - Co musisz obsłużyć:
   - **Uprawnienia:** cudzy/SYSTEM proces = `AccessDenied`. Bez admina pokaż błąd, nie crash. Na Windows UAC, na Linux/macOS sudo.
-  - **Czego nigdy nie ubijać bez ostrzeżenia:** PID 1, `docker-proxy`, `kubelet/kube-apiserver`, własny PID skanera. Lista zabronionych + dialog `Na pewno? [nazwa/cmdline]`.
+  - **Blokowane:** PID 0/1, własny PID i przodkowie skanera, procesy infrastruktury (w tym `docker-proxy`, `kubelet/kube-apiserver`), cudzy użytkownik i procesy spoza allowlisty. `--force` nie znosi blokad. Dla dozwolonych procesów dialog pokazuje nazwę i argumenty; po zgodzie ponownie sprawdzamy tożsamość.
   - **Docker:** ubijanie `docker-proxy` nic nie da — port wróci. Dla kontenera pokaż `docker stop <name>` zamiast kill PID.
   - **`kubectl port-forward`:** kill PID działa, ale to jest sesja deweloperska — bezpieczne, pokaż komendę źródłową z cmdline.
 - Wniosek: tak, `k` w TUI i `--kill PID` w CLI wchodzą do MVP razem z w pełni działającym TUI (decyzja z przeglądu planu 2026-09-06), ale z allowlistą i potwierdzeniem. Warunek "gotowe" = allowlista + dialog z §6, nie sam kod ubijania.

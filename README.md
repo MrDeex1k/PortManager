@@ -2,8 +2,9 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Fazy 0–3 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
-> gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s. CLI i TUI są planowane; poniższa tabela
+> **Status: Fazy 0–4 ukończone.** Istnieją instalowalny pakiet, odczyt lokalnych
+> gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s oraz działające CLI.
+> TUI pozostaje w Fazie 5; poniższa tabela
 > i opis interfejsów pokazują docelowe MVP.
 
 ```text
@@ -40,6 +41,12 @@ portscanner --cli --filter :8080
 portscanner --cli --kill 4123
 ```
 
+`--json` wypisuje wyłącznie tablicę portów na stdout; raporty źródeł są na stderr.
+Błąd podstawowego odczytu zwraca kod 1, także przy częściowych danych.
+`--kill` działa po potwierdzeniu, tylko dla własnych procesów z gniazdem
+na allowliście; `--force` nie omija blokad ani zgody.
+Szczegóły: [CLI](docs/cli.md).
+
 ### GUI — do klikania 🖱️
 
 Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`. Status: **po MVP**.
@@ -52,7 +59,8 @@ Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`. Status: **p
 uv sync --locked
 uv run portscanner --help   # działa już w Fazie 0
 uv run portscanner          # komunikat o braku TUI, kod wyjścia 1
-uv run portscanner --cli    # komunikat o braku CLI, kod wyjścia 1
+uv run portscanner --cli    # jednorazowa tabela portów
+uv run portscanner --cli --json --filter :8080  # JSON dla jednego portu
 ```
 
 Wymagania: Python `>= 3.12` (dev: `3.13`), [`uv`](https://docs.astral.sh/uv/).
@@ -71,7 +79,7 @@ uv build
 Pakowanie używa Hatchling i jawnego `[build-system]`, wymaganego dla komendy
 pakietu przez [uv](https://docs.astral.sh/uv/concepts/projects/config/#build-systems).
 Dystrybucja MVP pozostaje przez `pipx install git+https://github.com/MrDeex1k/PortManager.git`.
-Pełny interfejs będzie dostępny po dalszych fazach.
+CLI jest dostępne; pełny TUI powstanie w Fazie 5.
 
 ## Odczyt portów z Pythona (Faza 1)
 
@@ -172,16 +180,17 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 |---|---|
 | [`docs/mvp.md`](docs/mvp.md) | Pełna specyfikacja MVP: stack, decyzje, pułapki |
 | [`docs/plan-mvp.md`](docs/plan-mvp.md) | Fazy realizacji z checkboxami |
-| [`docs/core-api.md`](docs/core-api.md) | Kontrakt API po Fazie 3 i ograniczenia źródeł |
+| [`docs/core-api.md`](docs/core-api.md) | Kontrakt API core i ograniczenia źródeł |
+| [`docs/cli.md`](docs/cli.md) | Flagi CLI, JSON, kody wyjścia i polityka kończenia procesów |
 | [`docs/conventional-commits.md`](docs/conventional-commits.md) | Format commitów + hooki |
 
 ## Status
 
-Fazy 0–3 ukończone; następna jest Faza 4 — CLI.
+Fazy 0–4 ukończone; następna jest Faza 5 — TUI.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
 obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.13:
-146 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
+214 zaliczonych, 1 systemowy test integracyjny pominięty z powodu uprawnień.
 Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
 Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
 na podstawionych odpowiedziach HTTP oraz pojedynczym żądaniem HTTPS do ipify

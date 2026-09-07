@@ -120,17 +120,32 @@ mapowań; brak działających tuneli. Przypadki mapowań/Compose/konfiguracji
 sprawdzone na danych testowych; rzeczywisty transport metryk na HTTP loopback.
 Szczegóły i ograniczenia w `docs/core-api.md`. Matryca systemów nadal w Fazie 6.
 
-## Faza 4 — CLI `[ ]`
+## Faza 4 — CLI `[x]`
 
-- [ ] Typer + Rich: `--cli`, `--json`, `--filter`, `--kill`
-- [ ] `--json` jako kontrakt (golden testy przez `typer.testing.CliRunner`)
-- [ ] Kontrakt wejścia: brak flagi = TUI, `--cli` = CLI
+- [x] Typer + Rich: `--cli`, tabela, `--json`, `--filter`, `--kill`.
+- [x] Kontrakt JSON: tablica PortEntry na stdout; raporty na stderr.
+      Golden test przez CliRunner, kody wyjścia i błędy opisane w `docs/cli.md`.
+- [x] Filtry współdzielone w core: dokładne `:PORT`, `pid:PID` i tekst bez
+      rozróżniania wielkości liter; walidacja przed odczytem systemu.
+- [x] Wyłączanie źródeł i metryk, timeout, `--no-color`, jawny `--exit-ip`
+      wyłącznie w trybie tabeli, bez automatycznego żądania do internetu.
+- [x] `--kill`: wspólny core/actions z allowlistą, ochroną PID/infrastruktury,
+      sprawdzeniem właściciela i gniazd, potwierdzeniem i ponowną weryfikacją
+      danych procesu. `--force` tylko do eskalacji po timeout, bez omijania zgody.
+- [x] Kontrakt wejścia: `--cli` uruchamia CLI, brak flagi wybiera gałąź TUI;
+      do Fazy 5 ta gałąź jasno informuje o niedostępności (kod 1), bez skanowania.
+
+Weryfikacja: 214 testów zaliczonych, 1 pominięty (uprawnienia macOS), Ruff
+lint + format bez błędów, Pyrefly 0 błędów. Test rzeczywistego terminate dotyczył
+wyłącznie tymczasowego procesu utworzonego przez test. Zainstalowana komenda
+zwraca poprawny JSON, stderr i kod błędu przy odmowie systemowego odczytu.
 
 ## Faza 5 — TUI + kill `[ ]`
 
 - [ ] Textual: `Header + Input + DataTable + Footer`, kolumny z §4.2
 - [ ] Klawisze: `/` filtr, `s` sort, `r` refresh (diff co 2 s), `j` eksport, `q` quit
-- [ ] Kill: klawisz `k` z potwierdzeniem + allowlista (§6) + `--kill` w CLI
+- [ ] Kill w TUI: klawisz `k` i dialog zgody, wykorzystujące politykę
+      `core/actions.py` wdrożoną dla CLI w Fazie 4.
 - [ ] Smoke testy headless (`run_test()` / `Pilot`): start, filtr, quit
 
 ## Faza 6 — stabilizacja i release MVP `[ ]`

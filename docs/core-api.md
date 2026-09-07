@@ -145,3 +145,18 @@ nie wykryto działających procesów tuneli. Mapowania, Compose i konfiguracje
 zweryfikowano na kontrolowanych danych. Nie uruchamiano kontenerów ani tuneli.
 Systemowy odczyt gniazd psutil pozostaje pominięty z powodu uprawnień macOS;
 pełna matryca Windows/Linux/macOS pozostaje w Fazie 6.
+
+
+## Rozszerzenia Fazy 4 — filtry i działania
+
+`core/filtering.py` udostępnia `filter_entries(entries, query) -> list[PortEntry]`.
+`None` zachowuje wszystkie wpisy, `:PORT`/`pid:PID` filtrują dokładnie, pozostały
+tekst dopasowuje podciąg bez wielkości liter. Błędny filtr zgłasza `ValueError`.
+
+`core/actions.py` jest oddzielony od odczytów. `prepare_kill(pid) -> KillTarget`
+sprawdza politykę bez wysyłania sygnału. UI pokazuje dane i musi uzyskać zgodę,
+po czym wywołuje `terminate_target(target, force=False, timeout=3.0)`.
+Ta funkcja ponownie sprawdza tożsamość i reguły przed sygnałem oraz eskalacją.
+Błędy i odmowy zgłaszają `ProcessActionError`; nieprawidłowy timeout `ValueError`.
+Wywołania `collect_snapshot()` nigdy nie kończą procesów.
+Politykę i allowlistę opisuje [CLI](cli.md); TUI ma współdzielić te funkcje.
