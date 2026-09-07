@@ -120,3 +120,6 @@ ograniczeń odczytu i zamknęła się przez `q` z kodem 0. Pełna matryca termin
 Windows/Linux/macOS oraz instalacja release przez pipx pozostają w Fazie 6.
 Zbudowano sdist i wheel; wheel zawiera cały pakiet `tui/` oraz wspólne
 formatowanie `presentation.py`.
+
+Aktualna weryfikacja wydania na macOS, pipx i odroczone środowiska
+Windows/Linux: [Faza 6](release.md).

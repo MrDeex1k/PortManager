@@ -1,6 +1,6 @@
 # Plan MVP — fazy
 
-Stan na 2026-09-07. Źródło decyzji: `docs/mvp.md`.
+Stan na 2026-09-08. Źródło decyzji: `docs/mvp.md`.
 
 Kontrakt wejścia (obowiązuje od Fazy 4, GUI po MVP):
 - `portscanner` → TUI (domyślne)
@@ -165,11 +165,26 @@ Testy TUI używają kontrolowanych danych i nie kończą istniejących procesów
 Zbudowano sdist i wheel; sprawdzono obecność modułów TUI w wheel.
 Matryca systemów i wydanie przez pipx pozostają w Fazie 6.
 
-## Faza 6 — stabilizacja i release MVP `[ ]`
+## Faza 6 — stabilizacja i release MVP `[x]` (zakres macOS)
 
-- [ ] Ruff + Pyrefly na czysto, `pytest` zielone
-- [ ] Matryca manualna Win/Linux/Mac (do czasu gotowości runnerów)
-- [ ] Release: instalacja przez `pipx`, weryfikacja `portscanner` → TUI
+Decyzja użytkownika 2026-09-07: na tym etapie weryfikujemy macOS;
+Windows i Linux wrócą po udostępnieniu środowisk. Zakończenie fazy dotyczy
+tego zakresu, bez deklarowania sprawdzenia pozostałych systemów.
+
+- [x] Ruff lint/format oraz Pyrefly bez błędów.
+- [x] Pełny pytest na macOS ARM64: Python 3.12.14, 3.13.9 i 3.14.0;
+      na każdej wersji 231 testów zaliczonych, 1 pominięty (uprawnienia OS).
+- [x] Zbudowanie sdist i wheel z sdist; lokalne wydanie 0.1.0.
+- [x] Instalacja wheel przez pipx poza repo na Pythonie 3.12/3.13,
+      `pip check`, CLI i TUI headless z własnego venv pipx.
+- [x] Zainstalowana komenda bez flag uruchamia TUI w terminalu macOS;
+      filtr, sortowanie, odświeżanie i wyjście przez `q` działają.
+- [x] Powtarzalny `scripts/verify_release.py`, instrukcje instalacji,
+      aktualizacji i weryfikacji w `docs/release.md`, historia w `CHANGELOG.md`.
+
+Weryfikacja Windows/Linux i przygotowanie self-hosted CI pozostają odroczone
+zgodnie z decyzją użytkownika. Nie opublikowano taga ani zdalnego release.
+Szczegółowa matryca i ograniczenia odczytu macOS: `docs/release.md`.
 
 ---
 
