@@ -1,0 +1,35 @@
+[project]
+name = "portscanner"
+version = "0.1.0"
+description = "Lokalny skaner portów: TUI + CLI (+ GUI po MVP) na jednym core/"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [{ name = "Jakub Batycki", email = "jakub.batycki.jr@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "psutil>=7.2.2",
+    "pyyaml>=6.0.3",
+    "textual>=8.2.8",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+portscanner = "portscanner.cli:main"
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyrefly]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=1.2.0",
+    "pytest>=9.1.1",
+    "ruff>=0.16.6",
+]

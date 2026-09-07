@@ -169,7 +169,7 @@ W MVP: warstwa 1 (słownik `port/proces -> tag`). Warstwa 2 jako flaga `--kube` 
 - [x] Jakość kodu: **Ruff** (lint + format) + **Pyrefly** (typecheck) od pierwszego kodu (patrz §11).
 - [x] Docker do developmentu: **NIE** — decyzja z 2026-09-06 (patrz §10).
 - [ ] MCP Python SDK jako kolejny renderer `core/` — dopiero po stabilizacji, nie w MVP (patrz §12).
-- [x] Conventional Commits: **wymagane** — lefthook (`lefthook.yml` + `scripts/check_commit_msg.py`) lokalnie + Ruleset `Require commit message pattern` zdalnie, bez Actions (patrz `docs/conventional-commits.md`).
+- [x] Conventional Commits: **wymagane** — lefthook (`lefthook.yml` + `scripts/check_commit_msg.py`) lokalnie.
 - [x] Wejście: `portscanner` → TUI, `--cli` → CLI, `--gui` → GUI po MVP (ikonka desktopowa odpala ten sam GUI na tym samym `core/`; szczegóły w `docs/plan-mvp.md`).
 - [x] Testy: `pytest` (unit `core/` + `CliRunner` dla `--json` + Textual `Pilot` smoke dla TUI) + matryca manualna Win/Linux/Mac.
 - [x] CI docelowo: self-hosted Actions (Ubuntu x86 + RPi 5B ARM64, przy okazji test ARM64); status: maszyny w przygotowaniu, do tego czasu matryca manualna.
@@ -222,6 +222,7 @@ from mcp.server.mcpserver import MCPServer
 from portscanner.core import listeners  # ten sam core co CLI/TUI
 
 mcp = MCPServer("portscanner")
+
 
 @mcp.tool()
 def list_listen_ports() -> str:

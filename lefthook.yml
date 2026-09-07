@@ -17,3 +17,10 @@ commit-msg:
       # {1} = plik z treścią commita, przekazywany przez gita do hooka commit-msg.
       # Python zamiast sh+grep, żeby działało identycznie na Win/Mac/Linux.
       run: python scripts/check_commit_msg.py {1}
+
+pre-commit:
+  commands:
+    ruff:
+      # Blokuje brudny commit. Pyrefly celowo poza hookiem (wolniejszy) —
+      # puszczany ręcznie, z wymogiem "zero błędów" na koniec każdej fazy.
+      run: uv run ruff check . && uv run ruff format --check .

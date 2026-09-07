@@ -57,8 +57,7 @@ def main() -> int:
 
     if len(subject) > 100:
         print(
-            f"OSTRZEŻENIE: temat ma {len(subject)} znaków (>100). "
-            "Rozważ skrócenie.",
+            f"OSTRZEŻENIE: temat ma {len(subject)} znaków (>100). Rozważ skrócenie.",
             file=sys.stderr,
         )
 
