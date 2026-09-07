@@ -160,7 +160,8 @@ obowiązuje weryfikacja manualna. Testy tego etapu wykonano na macOS / Python 3.
 83 zaliczone, 1 systemowy test integracyjny pominięty z powodu uprawnień.
 Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
 Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
-na podstawionych odpowiedziach HTTP; testu rzeczywistej usługi nie wykonano.
+na podstawionych odpowiedziach HTTP oraz pojedynczym żądaniem HTTPS do ipify
+za zgodą użytkownika (2026-09-07): poprawny IPv4, bez zapisywania adresu.
 Testy integracyjne
 wymagają możliwości tworzenia gniazd loopback w środowisku uruchomienia.
 

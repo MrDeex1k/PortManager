@@ -90,8 +90,10 @@ bez błędów, Pyrefly 0 błędów. Pełna matryca systemów pozostaje w Fazie 6
 
 Weryfikacja (macOS / Python 3.13): 83 testy zaliczone, 1 systemowy test
 integracyjny pominięty z powodu uprawnień; Ruff lint + format bez błędów,
-Pyrefly 0 błędów. Testy HTTP używają kontrolowanych odpowiedzi; próby z
-rzeczywistą usługą ipify nie wykonano. Pełna matryca systemów nadal w Fazie 6.
+Pyrefly 0 błędów. Testy HTTP używają kontrolowanych odpowiedzi. Dodatkowo
+2026-09-07, za zgodą użytkownika, wykonano pojedyncze żądanie HTTPS do ipify:
+poprawny IPv4 i etykieta, bez zapisywania adresu ani ponawiania żądania.
+Pełna matryca systemów nadal w Fazie 6.
 
 ## Faza 3 — `core`: Docker + tunele + tagi `[ ]`
 
