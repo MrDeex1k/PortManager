@@ -1,0 +1,17 @@
+[
+  {
+    "proto": "tcp",
+    "bind": "*",
+    "port": 8080,
+    "pid": 42,
+    "process": {"pid": 42, "status": "ok", "name": "python", "cmdline": ["python", "server.py"]},
+    "docker": [{"container_id": "abc", "container_name": "web", "host_bind": "0.0.0.0", "host_port": 8080, "container_port": 80, "proto": "tcp", "compose_project": "demo", "compose_service": "web"}],
+    "tunnels": [{"pid": 99, "hostname": "app.example.com", "host": "localhost", "port": 8080, "path": "/api"}],
+    "tags": [{"name": "k8s", "evidence": "port"}],
+    "origin": "socket"
+  },
+  {
+    "proto": "udp", "bind": "::1", "port": 5353, "pid": null, "process": null,
+    "docker": [], "tunnels": [], "tags": [], "origin": "socket"
+  }
+]

@@ -2,6 +2,9 @@
 
 Wszystkie commity **muszą** spełniać [Conventional Commits 1.0](https://www.conventionalcommits.org/).
 
+**Wiadomości commitów muszą być po angielsku** — zarówno temat, jak i opcjonalna
+treść oraz stopki. Dokumentacja projektu pozostaje po polsku.
+
 ## Format
 
 ```
@@ -17,11 +20,11 @@ Wszystkie commity **muszą** spełniać [Conventional Commits 1.0](https://www.c
 ## Przykłady
 
 ```bash
-feat(tui): dodaj sortowanie tabeli po porcie
-fix(docker): popraw parsowanie mapowania IPv6 w Ports
-docs: dopisz decyzję o braku Dockera w devie
-refactor(core)!: zmień PortEntry na frozen dataclass
-chore(repo): dodaj hook conventional commits
+feat(tui): add table sorting by port
+fix(docker): fix IPv6 port mapping parsing
+docs: document the decision to develop without Docker
+refactor(core)!: make PortEntry a frozen dataclass
+chore(repo): add conventional commits hook
 ```
 
 Breaking change opisuj też w stopce (`BREAKING CHANGE: ...`), ale samo `!` wystarcza do zaliczenia hooka.
@@ -38,6 +41,7 @@ Breaking change opisuj też w stopce (`BREAKING CHANGE: ...`), ale samo `!` wyst
 1. **Lokalnie — lefthook** (model zaufania).
    Hook `commit-msg` z `lefthook.yml` wywołuje `scripts/check_commit_msg.py`
    (czysty stdlib, ten sam regex co wcześniej, działa na Win/Mac/Linux).
+   Hook sprawdza format, nie język — wymóg angielskiego obowiązuje autora commita.
 
    Po klonie repo wykonaj raz:
 
