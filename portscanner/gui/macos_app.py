@@ -1,6 +1,8 @@
 """Lekki bundle .app uruchamiający zainstalowane `portscanner --gui`."""
 
 import argparse
+import ctypes
+import errno
 import os
 import plistlib
 import shutil
@@ -8,6 +10,43 @@ import stat
 from importlib.metadata import version
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+_AT_FDCWD = -2
+_RENAME_EXCL = 0x00000004
+
+
+def _publish_bundle(bundle: Path, output: Path) -> None:
+    """Opublikuj bundle atomowo, bez zastępowania istniejącego celu."""
+    try:
+        renameatx_np = ctypes.CDLL(None, use_errno=True).renameatx_np
+    except AttributeError as error:
+        raise OSError(
+            errno.ENOTSUP,
+            "System nie obsługuje atomowej publikacji bundle bez nadpisania.",
+            output,
+        ) from error
+    renameatx_np.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameatx_np.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameatx_np(
+        _AT_FDCWD,
+        os.fsencode(bundle),
+        _AT_FDCWD,
+        os.fsencode(output),
+        _RENAME_EXCL,
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in (errno.EEXIST, errno.ENOTEMPTY):
+        raise ValueError(f"Ścieżka już istnieje: {output}")
+    raise OSError(error_number, os.strerror(error_number), output)
 
 
 def build_app(command: Path, output: Path, *, icon: Path) -> Path:
@@ -54,7 +93,7 @@ def build_app(command: Path, output: Path, *, icon: Path) -> Path:
         }
         with (bundle / "Contents" / "Info.plist").open("wb") as file:
             plistlib.dump(info, file, sort_keys=True)
-        bundle.rename(output)
+        _publish_bundle(bundle, output)
     return output
 
 

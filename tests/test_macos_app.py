@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from portscanner.gui.macos_app import build_app
+from portscanner.gui.macos_app import _publish_bundle, build_app
 
 
 def test_build_app_creates_icon_and_gui_launcher(tmp_path: Path) -> None:
@@ -69,3 +69,33 @@ def test_build_app_cleans_up_failed_temporary_bundle(tmp_path: Path) -> None:
         build_app(command, output, icon=icon)
     assert not output.exists()
     assert list(tmp_path.glob(".PortManager-*")) == []
+
+
+def test_publish_bundle_never_replaces_existing_empty_directory(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "temporary.app"
+    marker = bundle / "Contents" / "marker"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("new")
+    output = tmp_path / "PortManager.app"
+    output.mkdir()
+
+    with pytest.raises(ValueError, match="już istnieje"):
+        _publish_bundle(bundle, output)
+
+    assert output.is_dir() and list(output.iterdir()) == []
+    assert marker.read_text() == "new"
+
+
+def test_publish_bundle_fails_closed_without_macos_api(tmp_path: Path) -> None:
+    bundle = tmp_path / "temporary.app"
+    bundle.mkdir()
+    output = tmp_path / "PortManager.app"
+    with (
+        patch("portscanner.gui.macos_app.ctypes.CDLL", return_value=object()),
+        pytest.raises(OSError, match="atomowej publikacji"),
+    ):
+        _publish_bundle(bundle, output)
+    assert bundle.exists()
+    assert not output.exists()

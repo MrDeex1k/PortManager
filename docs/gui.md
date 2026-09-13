@@ -64,10 +64,11 @@ usług exit IP i nie podnosi uprawnień.
 - Natywny eksport widocznych wierszy w bieżącej kolejności. JSON ma ten sam
   kontrakt `PortEntry[]` co CLI i TUI; systemowy dialog obsługuje wybór ścieżki
   i potwierdzenie zastąpienia istniejącego pliku.
-- Kończenie procesu jest dwuetapowe. `prepare_kill()` tworzy jednorazową,
-  krótkotrwałą zgodę na pokazany cel. Dialog domyślnie anuluje, osobno zezwala
-  na wymuszenie po timeout, a `terminate_target()` ponownie sprawdza tożsamość,
-  właściciela, allowlistę, przestrzenie nazw i lokalne gniazdo.
+- Kończenie procesu jest dwuetapowe. `prepare_kill()` weryfikuje warunki bez
+  wysyłania sygnału i zwraca `KillTarget`. Most przechowuje cel pod krótkotrwałym,
+  jednorazowym tokenem, a dialog pokazuje go i zbiera zgodę użytkownika.
+  `terminate_target()` ponownie sprawdza tożsamość, właściciela, allowlistę,
+  przestrzenie nazw i lokalne gniazdo; force wymaga osobnej zgody.
 
 Metody mostu są wywoływane asynchronicznie przez pywebview poza wątkiem WebKit.
 Blokady po stronie Pythona zapobiegają równoległym skanom i podwójnym operacjom.
