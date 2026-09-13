@@ -1,7 +1,7 @@
 [project]
 name = "portscanner"
 version = "0.1.0"
-description = "Lokalny skaner portów: TUI + CLI (+ GUI po MVP) na jednym core/"
+description = "Lokalny skaner portów: TUI, CLI i GUI na jednym core/"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Jakub Batycki", email = "jakub.batycki.jr@gmail.com" }]
@@ -16,6 +16,12 @@ dependencies = [
 
 [project.scripts]
 portscanner = "portscanner.cli:main"
+portscanner-macos-app = "portscanner.gui.macos_app:main"
+
+[project.optional-dependencies]
+gui = [
+    "pywebview==6.2.1",
+]
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]
@@ -23,6 +29,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["portscanner"]
+
+[tool.hatch.build]
+artifacts = ["portscanner/gui/assets/**"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["frontend/node_modules", "frontend/test-results", "frontend/playwright-report"]
 
 [tool.ruff]
 target-version = "py312"

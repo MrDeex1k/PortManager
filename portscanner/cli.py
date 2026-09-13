@@ -89,6 +89,9 @@ def run(
     cli: Annotated[
         bool, typer.Option("--cli", help="Jednorazowy odczyt portów.")
     ] = False,
+    gui: Annotated[
+        bool, typer.Option("--gui", help="Okno desktopowe (wymaga dodatku gui).")
+    ] = False,
     json_output: Annotated[
         bool, typer.Option("--json", help="Tablica portów JSON na stdout.")
     ] = False,
@@ -136,6 +139,31 @@ def run(
         raise typer.BadParameter(
             "Timeout musi być dodatni i skończony.", param_hint="--timeout"
         )
+    if gui:
+        if any(
+            (
+                cli,
+                json_output,
+                query is not None,
+                kill is not None,
+                force,
+                no_color,
+                no_docker,
+                no_tunnels,
+                no_metrics,
+                exit_ip,
+                timeout != 3.0,
+            )
+        ):
+            raise typer.BadParameter("--gui nie łączy się z opcjami CLI.")
+        from portscanner.gui import GuiLaunchError, launch
+
+        try:
+            launch()
+        except GuiLaunchError as error:
+            typer.echo(str(error), err=True)
+            raise typer.Exit(code=1) from error
+        return
     if not cli:
         if any(
             (

@@ -69,3 +69,10 @@ Breaking change opisuj też w stopce (`BREAKING CHANGE: ...`), ale samo `!` wyst
    (solowy dev, brak CI, brak podpisywania).
 
 Commity generowane przez gita (`Merge branch ...`, `Revert "..."`) są przepuszczane.
+
+## Nazwy gałęzi
+
+Zgodnie z decyzją użytkownika z 2026-09-08 używamy nazw opisujących rodzaj
+pracy, np. `feat/desktop-gui-phase-7` i `fix/gui-refresh-selection`.
+Nową gałąź dla dalszej pracy tworzymy z uzgodnionej gałęzi bazowej;
+nie stosujemy domyślnego prefiksu `codex/`.
