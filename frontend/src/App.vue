@@ -185,40 +185,61 @@ function resetFilters() {
   source.value = 'all'
   protocol.value = 'all'
 }
+function rejectedBridgeMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? `${fallback}: ${error.message}` : fallback
+}
 async function exportVisible() {
   const current = snapshot.value
   if (!current) return showNotice('Natywny eksport jest dostępny w aplikacji desktopowej.')
   operationBusy.value = true
-  const result = await desktopBridge()!.export_ports(
-    current.generation,
-    table.getRowModel().rows.map((row) => row.original.id),
-  )
-  operationBusy.value = false
-  if (!result.ok) showNotice(result.message ?? 'Eksport nie powiódł się.')
-  else if (result.status === 'saved') showNotice(`Zapisano ${result.path}`)
+  try {
+    const result = await desktopBridge()!.export_ports(
+      current.generation,
+      table.getRowModel().rows.map((row) => row.original.id),
+    )
+    if (!result.ok) showNotice(result.message ?? 'Eksport nie powiódł się.')
+    else if (result.status === 'saved') showNotice(`Zapisano ${result.path}`)
+  } catch (error) {
+    showNotice(rejectedBridgeMessage(error, 'Połączenie zostało przerwane podczas eksportu'))
+  } finally {
+    operationBusy.value = false
+  }
 }
 async function requestKill(row: PortRow) {
   if (row.pid === null || !desktopBridge()) return
   operationBusy.value = true
-  const result = await desktopBridge()!.prepare_process(row.pid)
-  operationBusy.value = false
-  if (!result.ok) return showNotice(result.message ?? 'Procesu nie można zakończyć.')
-  pendingKill.value = { token: result.token, target: result.target }
-  forceKill.value = false
-  killDialog.value?.showModal()
+  try {
+    const result = await desktopBridge()!.prepare_process(row.pid)
+    if (!result.ok) return showNotice(result.message ?? 'Procesu nie można zakończyć.')
+    pendingKill.value = { token: result.token, target: result.target }
+    forceKill.value = false
+    killDialog.value?.showModal()
+  } catch (error) {
+    showNotice(rejectedBridgeMessage(error, 'Połączenie zostało przerwane podczas weryfikacji'))
+  } finally {
+    operationBusy.value = false
+  }
 }
 async function confirmKill() {
   const consent = pendingKill.value
   if (!consent) return
   operationBusy.value = true
-  const result = await desktopBridge()!.terminate_process(consent.token, forceKill.value)
-  operationBusy.value = false
-  killDialog.value?.close()
-  pendingKill.value = null
-  if (!result.ok) showNotice(result.message ?? 'Nie udało się zakończyć procesu.')
-  else {
-    showNotice(`Proces PID ${result.pid} został zakończony.`)
-    await snapshotQuery.refetch()
+  try {
+    const result = await desktopBridge()!.terminate_process(consent.token, forceKill.value)
+    killDialog.value?.close()
+    pendingKill.value = null
+    if (!result.ok) showNotice(result.message ?? 'Nie udało się zakończyć procesu.')
+    else {
+      showNotice(`Proces PID ${result.pid} został zakończony.`)
+      await snapshotQuery.refetch()
+    }
+  } catch (error) {
+    // Wynik operacji jest nieznany, więc nie pozwalamy ponownie użyć tej zgody.
+    killDialog.value?.close()
+    pendingKill.value = null
+    showNotice(rejectedBridgeMessage(error, 'Połączenie zostało przerwane podczas operacji'))
+  } finally {
+    operationBusy.value = false
   }
 }
 function onBridgeReady() {

@@ -4,6 +4,7 @@ import os
 import plistlib
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -34,9 +35,37 @@ def test_build_app_creates_icon_and_gui_launcher(tmp_path: Path) -> None:
 def test_build_app_refuses_overwrite(tmp_path: Path) -> None:
     command = tmp_path / "portscanner"
     command.write_text("#!/bin/sh\n")
+    command.chmod(0o755)
     icon = tmp_path / "icon.icns"
     icon.write_bytes(b"icon")
     output = tmp_path / "PortManager.app"
     output.mkdir()
     with pytest.raises(ValueError, match="już istnieje"):
         build_app(command, output, icon=icon)
+
+
+def test_build_app_rejects_non_executable_command(tmp_path: Path) -> None:
+    command = tmp_path / "portscanner"
+    command.write_text("#!/bin/sh\n")
+    icon = tmp_path / "icon.icns"
+    icon.write_bytes(b"icon")
+    output = tmp_path / "PortManager.app"
+    with pytest.raises(ValueError, match="Nie znaleziono polecenia"):
+        build_app(command, output, icon=icon)
+    assert not output.exists()
+
+
+def test_build_app_cleans_up_failed_temporary_bundle(tmp_path: Path) -> None:
+    command = tmp_path / "portscanner"
+    command.write_text("#!/bin/sh\n")
+    command.chmod(0o755)
+    icon = tmp_path / "icon.icns"
+    icon.write_bytes(b"icon")
+    output = tmp_path / "PortManager.app"
+    with (
+        patch("portscanner.gui.macos_app.shutil.copy2", side_effect=OSError("disk")),
+        pytest.raises(OSError, match="disk"),
+    ):
+        build_app(command, output, icon=icon)
+    assert not output.exists()
+    assert list(tmp_path.glob(".PortManager-*")) == []
