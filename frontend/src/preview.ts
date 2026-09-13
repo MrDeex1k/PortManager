@@ -1,133 +1,153 @@
-// Wyłącznie fixture prototypu. Integracja i filtry core powstaną w Fazie 7.2.
-export interface PreviewPort {
-  id: string
-  port: number
-  protocol: 'TCP' | 'UDP'
-  bind: string
-  pid: number | null
-  process: string
-  command: string
-  service: string
-  container?: { name: string; port: number; project: string }
-  tunnel?: string
-}
+import type { LocalIP, PortRow, SourceReport } from './types'
 
-export type SourceFilter = 'all' | 'docker' | 'tunnels'
-export type ProtocolFilter = 'all' | 'TCP' | 'UDP'
+const proc = (pid: number, name: string, cmdline: string[]): PortRow['process'] => ({
+  pid,
+  status: 'ok',
+  name,
+  cmdline,
+})
 
-export const previewPorts: PreviewPort[] = [
+export const previewPorts: PortRow[] = [
   {
     id: 'web',
-    port: 3000,
-    protocol: 'TCP',
+    proto: 'tcp',
     bind: '127.0.0.1',
+    port: 3000,
     pid: 8421,
-    process: 'bun',
-    command: 'bun run dev --port 3000',
-    service: 'Frontend',
-    tunnel: 'app.example.com',
+    process: proc(8421, 'bun', ['bun', 'run', 'dev']),
+    docker: [],
+    tunnels: [
+      { pid: 8360, hostname: 'app.example.com', host: 'localhost', port: 3000, path: null },
+    ],
+    tags: [],
+    origin: 'socket',
   },
   {
     id: 'api',
-    port: 8000,
-    protocol: 'TCP',
+    proto: 'tcp',
     bind: '127.0.0.1',
+    port: 8000,
     pid: 8436,
-    process: 'python3',
-    command: 'uvicorn app.main:app --reload --port 8000',
-    service: 'API lokalne',
+    process: proc(8436, 'python3', ['uvicorn', 'app.main:app', '--reload']),
+    docker: [],
+    tunnels: [],
+    tags: [],
+    origin: 'socket',
   },
   {
     id: 'postgres',
-    port: 5432,
-    protocol: 'TCP',
+    proto: 'tcp',
     bind: '0.0.0.0',
+    port: 5432,
     pid: null,
-    process: 'postgres',
-    command: 'postgres -c log_statement=none',
-    service: 'Baza danych',
-    container: { name: 'workspace-db', port: 5432, project: 'workspace' },
+    process: null,
+    docker: [
+      {
+        container_id: '4fba1180',
+        container_name: 'workspace-db',
+        host_bind: '0.0.0.0',
+        host_port: 5432,
+        container_port: 5432,
+        proto: 'tcp',
+        compose_project: 'workspace',
+        compose_service: 'db',
+      },
+    ],
+    tunnels: [],
+    tags: [],
+    origin: 'docker',
   },
   {
     id: 'redis',
-    port: 6379,
-    protocol: 'TCP',
+    proto: 'tcp',
     bind: '127.0.0.1',
+    port: 6379,
     pid: null,
-    process: 'redis-server',
-    command: 'redis-server --appendonly yes',
-    service: 'Cache',
-    container: { name: 'workspace-cache', port: 6379, project: 'workspace' },
+    process: null,
+    docker: [
+      {
+        container_id: '7ae51b21',
+        container_name: 'workspace-cache',
+        host_bind: '127.0.0.1',
+        host_port: 6379,
+        container_port: 6379,
+        proto: 'tcp',
+        compose_project: 'workspace',
+        compose_service: 'cache',
+      },
+    ],
+    tunnels: [],
+    tags: [],
+    origin: 'docker',
   },
   {
     id: 'vite',
-    port: 5173,
-    protocol: 'TCP',
+    proto: 'tcp',
     bind: '127.0.0.1',
+    port: 5173,
     pid: 9120,
-    process: 'bun',
-    command: 'bun --bun vite --host 127.0.0.1',
-    service: 'PortManager UI',
-  },
-  {
-    id: 'nginx',
-    port: 8080,
-    protocol: 'TCP',
-    bind: '0.0.0.0',
-    pid: null,
-    process: 'nginx',
-    command: 'nginx -g daemon off;',
-    service: 'Reverse proxy',
-    container: { name: 'workspace-proxy', port: 80, project: 'workspace' },
-    tunnel: 'preview.example.com',
+    process: proc(9120, 'bun', ['bun', '--bun', 'vite']),
+    docker: [],
+    tunnels: [],
+    tags: [],
+    origin: 'socket',
   },
   {
     id: 'dns',
-    port: 5353,
-    protocol: 'UDP',
+    proto: 'udp',
     bind: '*',
+    port: 5353,
     pid: 402,
-    process: 'mDNSResponder',
-    command: '/usr/sbin/mDNSResponder',
-    service: 'Wykrywanie usług',
-  },
-  {
-    id: 'metrics',
-    port: 20241,
-    protocol: 'TCP',
-    bind: '127.0.0.1',
-    pid: 8360,
-    process: 'cloudflared',
-    command: 'cloudflared tunnel --metrics 127.0.0.1:20241 run workspace',
-    service: 'Metryki tunelu',
+    process: { pid: 402, status: 'access_denied', name: 'mDNSResponder', cmdline: null },
+    docker: [],
+    tunnels: [],
+    tags: [],
+    origin: 'socket',
   },
 ]
+export const previewLocalIPs: LocalIP[] = [
+  { interface: 'en0', address: '192.168.1.42', family: 'ipv4' },
+  { interface: 'lo0', address: '127.0.0.1', family: 'ipv4' },
+]
+export const previewReports: SourceReport[] = [
+  { source: 'listeners', status: 'ok', message: null },
+  { source: 'processes', status: 'partial', message: 'Część danych procesów jest niedostępna.' },
+  { source: 'docker', status: 'ok', message: null },
+  { source: 'tunnels', status: 'ok', message: null },
+]
 
-export function filterPreview(
-  ports: PreviewPort[],
-  query: string,
-  source: SourceFilter,
-  protocol: ProtocolFilter,
-): PreviewPort[] {
+export function filterPreview(ports: PortRow[], query: string): string[] {
   const text = query.trim().toLowerCase()
-  return ports.filter((row) => {
-    if (source === 'docker' && !row.container) return false
-    if (source === 'tunnels' && !row.tunnel) return false
-    if (protocol !== 'all' && row.protocol !== protocol) return false
-    if (text.startsWith(':')) return /^:\d+$/.test(text) && row.port === Number(text.slice(1))
-    if (text.startsWith('pid:')) return /^pid:\d+$/.test(text) && row.pid === Number(text.slice(4))
-    return [
-      row.port,
-      row.pid,
-      row.bind,
-      row.process,
-      row.service,
-      row.command,
-      row.container?.name,
-      row.tunnel,
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(text)
-  })
+  if (!text) return ports.map((row) => row.id)
+  if (text.startsWith(':'))
+    return /^:\d+$/.test(text)
+      ? ports.filter((row) => row.port === Number(text.slice(1))).map((row) => row.id)
+      : []
+  if (text.startsWith('pid:'))
+    return /^pid:\d+$/.test(text)
+      ? ports.filter((row) => row.pid === Number(text.slice(4))).map((row) => row.id)
+      : []
+  return ports
+    .filter((row) =>
+      [
+        row.proto,
+        row.bind,
+        row.port,
+        row.pid,
+        row.process?.name,
+        ...(row.process?.cmdline ?? []),
+        ...row.docker.flatMap((item) => [
+          item.container_name,
+          item.compose_project,
+          item.compose_service,
+        ]),
+        ...row.tunnels.map((item) => item.hostname),
+        ...row.tags.map((item) => item.name),
+        row.origin,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(text),
+    )
+    .map((row) => row.id)
 }

@@ -54,14 +54,13 @@ Szczegóły: [CLI](docs/cli.md).
 ### GUI — do klikania 🖱️
 
 Lekka aplikacja desktopowa (`pywebview` + Vue) na tym samym `core/`.
-Status: **Faza 7.1 zakończona — szkielet i interaktywny prototyp**. `--gui` otwiera okno
-z przykładową tabelą, filtrami, sortowaniem i inspektorem. Paleta: grafit oraz
-stonowany błękit z nutą lawendy. GUI nie odczytuje jeszcze danych komputera.
+Status: **Faza 7 zakończona na macOS**. `--gui` pokazuje rzeczywistą migawkę
+portów, procesów, Docker/Compose, tuneli, tagów i lokalnych adresów IP. Obsługuje
+filtrowanie z core, sortowanie, automatyczne odświeżanie, natywny eksport JSON
+oraz potwierdzane kończenie dozwolonych procesów. Paleta pozostaje grafitowa,
+ze stonowanym błękitem i nutą lawendy.
 Frontend: Vue + TanStack Table/Query, Bun, Vite i Tailwind przez plugin Vite.
-Uruchamianie, wersje i granice prototypu: [GUI](docs/gui.md).
-Połączenie z core i operacje pozostają w [Fazach 7.2–7.5](docs/plan-mvp.md).
-Następny etap to prawdziwe migawki, odczyty w tle i raporty uprawnień (7.2),
-z zachowaniem zaakceptowanej palety i ikony.
+Zakres, instalacja skrótu `.app` i wyniki weryfikacji: [GUI](docs/gui.md).
 
 ---
 
@@ -199,7 +198,7 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 | [`docs/core-api.md`](docs/core-api.md) | Kontrakt API core i ograniczenia źródeł |
 | [`docs/cli.md`](docs/cli.md) | Flagi CLI, JSON, kody wyjścia i polityka kończenia procesów |
 | [`docs/tui.md`](docs/tui.md) | Skróty TUI, odświeżanie, eksport JSON i dialog kończenia procesu |
-| [`docs/gui.md`](docs/gui.md) | Prototyp GUI, Bun/Vite, opcjonalny pywebview i pakowanie |
+| [`docs/gui.md`](docs/gui.md) | GUI, Bun/Vite, pywebview, eksport, operacje i skrót macOS |
 | [`docs/release.md`](docs/release.md) | Instalacja pipx, powtarzalna weryfikacja i matryca systemów |
 | [`CHANGELOG.md`](CHANGELOG.md) | Historia zmian wydania |
 | [`docs/conventional-commits.md`](docs/conventional-commits.md) | Format commitów + hooki |

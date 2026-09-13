@@ -1,12 +1,10 @@
-# GUI — prototyp desktopowy
+# GUI desktopowe
 
-**Faza 7.1 zakończona 2026-09-08:** szkielet pywebview i interaktywny prototyp Vue. Dane w GUI są
-**wyłącznie przykładowe**. Nie wykonujemy odczytu systemu, zapytań o exit IP
-ani operacji na procesach. CLI i TUI zachowują dotychczasowe działanie.
+**Stan 2026-09-12:** Faza 7 jest zakończona na macOS. GUI korzysta z tego
+samego `core/` co CLI i TUI. Tryb desktopowy pokazuje rzeczywiste dane;
+otwarcie samego Vite w przeglądarce używa jawnych danych demonstracyjnych.
 
 ## Uruchomienie
-
-W katalogu repozytorium:
 
 ```bash
 uv sync --locked --extra gui
@@ -17,168 +15,129 @@ cd ..
 uv run --locked --extra gui portscanner --gui
 ```
 
-`--gui` nie łączy się z flagami CLI. Bez flag nadal uruchamia się TUI.
-Brak pywebview lub zasobów powoduje czytelny komunikat na stderr i kod 1.
-Samo CLI/TUI nie potrzebuje pywebview, Bun ani Node.
+`--gui` nie łączy się z flagami CLI. Bez flag uruchamia się TUI. Zależność
+pywebview jest opcjonalna, więc CLI i TUI nie wymagają środowiska graficznego,
+Bun ani Node.
 
-## Development z Vite
+## Skrót PortManager.app
 
-Pierwszy terminal, w `frontend/`:
+Po instalacji wheel z dodatkiem GUI utwórz lekki bundle wskazujący polecenie
+z tego środowiska:
 
 ```bash
-bun run dev
+portscanner-macos-app \
+  --command "$(command -v portscanner)" \
+  --output "$HOME/Applications/PortManager.app"
+open "$HOME/Applications/PortManager.app"
 ```
 
-Podgląd w przeglądarce: <http://127.0.0.1:5173>.
-Drugi terminal, w katalogu repozytorium:
+Generator odmawia zastąpienia istniejącej ścieżki. Bundle zawiera ikonę ICNS,
+`Info.plist` oraz mały launcher wykonujący dokładnie `portscanner --gui`.
+Nie kopiuje interpretera ani zależności, więc wskazane środowisko musi pozostać
+w tym samym miejscu. Bundle nie jest podpisany; samodzielna binarka,
+notaryzacja i podpisywanie należą do późniejszego etapu dystrybucji.
+
+Podczas pracy z Vite uruchom dwa terminale:
 
 ```bash
+cd frontend && bun run dev
 PORTSCANNER_GUI_DEV_URL=http://127.0.0.1:5173 uv run --locked --extra gui portscanner --gui
 ```
 
-Vite nasłuchuje tylko na `127.0.0.1`, z `strictPort`. Mostek akceptuje wyłącznie
-ten konkretny URL deweloperski. Zbudowane GUI korzysta z zasobów lokalnych
-i serwera statycznego pywebview; nie potrzebuje działającego Vite.
-Serwery nie odpytują zewnętrznych usług. Fonty systemowe, ikony i kod
-aplikacji są lokalne.
+Mostek akceptuje wyłącznie ten adres loopback i stały port. Zbudowana aplikacja
+ładuje lokalne zasoby pakietu i nie potrzebuje Vite. Nie odpytuje automatycznie
+usług exit IP i nie podnosi uprawnień.
 
-## Narzędzia i zgodność
+## Funkcje
 
-Wersje sprawdzono przez Context7 oraz rejestry npm/PyPI 2026-09-08.
-Dokładne wersje zapisano w `package.json`, `bun.lock` i `uv.lock`.
+- Migawka z `collect_snapshot()`: TCP/UDP, procesy, lokalne IP, Docker/Compose,
+  tunele, tagi oraz raport każdego źródła.
+- Odświeżanie co 2 sekundy przez TanStack Query. Odczyty nie nakładają się,
+  starsza odpowiedź nie zastępuje nowszej, a zaznaczenie jest zachowywane po
+  stabilnym kluczu `(proto, bind, port, pid, origin)`.
+- Wyszukiwanie tekstowe oraz dokładne `:PORT` i `pid:PID` przez wspólny filtr
+  Pythona. Filtry źródła i protokołu oraz sortowanie są stanem prezentacji.
+- Tabela i inspektor pokazują bind, PID, stan i argumenty procesu, mapowania
+  kontenerów, projekt/usługę Compose, trasy tuneli, tagi i ograniczenia danych.
+- Osobne stany pierwszego odczytu, pustej migawki, braku dopasowań, danych
+  częściowych i błędu. Odmowa uprawnień jest raportem, a nie pustą listą.
+- Natywny eksport widocznych wierszy w bieżącej kolejności. JSON ma ten sam
+  kontrakt `PortEntry[]` co CLI i TUI; systemowy dialog obsługuje wybór ścieżki
+  i potwierdzenie zastąpienia istniejącego pliku.
+- Kończenie procesu jest dwuetapowe. `prepare_kill()` tworzy jednorazową,
+  krótkotrwałą zgodę na pokazany cel. Dialog domyślnie anuluje, osobno zezwala
+  na wymuszenie po timeout, a `terminate_target()` ponownie sprawdza tożsamość,
+  właściciela, allowlistę, przestrzenie nazw i lokalne gniazdo.
 
-| Narzędzie | Wersja | Rola |
-|---|---|---|
-| Bun | 1.4.2 | Instalacja, runner skryptów, runtime Vite i testów |
-| Vue | 3.5.42 | Interfejs i reaktywność |
-| TanStack Table | 9.2.4 | Tabela i sortowanie, API `useTable` v9 |
-| TanStack Vue Query | 5.102.8 | Stan i błędy połączenia z mostkiem |
-| Vite / plugin Vue | 8.2.2 / 6.0.8 | HMR oraz budowanie lokalnych zasobów |
-| Tailwind / plugin Vite | 4.3.3 / 4.3.3 | CSS przez `@tailwindcss/vite` i `@import "tailwindcss"` |
-| pywebview | 6.2.1 | Okno i natywny WebKit na macOS |
-| TypeScript / vue-tsc | 6.0.3 / 3.3.11 | Kontrola typów kodu i szablonów Vue |
-| Prettier | 3.9.6 | Formatowanie frontendu |
+Metody mostu są wywoływane asynchronicznie przez pywebview poza wątkiem WebKit.
+Blokady po stronie Pythona zapobiegają równoległym skanom i podwójnym operacjom.
+Zmiana zaznaczenia podczas dialogu nie zmienia zapamiętanego celu zgody.
+Komunikaty polityki, zniknięcie procesu i timeout wracają do interfejsu bez
+automatycznej eskalacji uprawnień.
 
-Nie ma konfiguracji PostCSS ani Autoprefixera. Vite może mieć PostCSS w swoim
-drzewie zależności; aplikacja nie konfiguruje go do Tailwinda.
+## Wygląd i narzędzia
 
-**Wyjątek dla kontroli typów:** `bun run check` uruchamia `vue-tsc` przez Node.
-Sprawdzono Node 26.5.0; zalecany Node >=22.12. TypeScript 7.0.2 nie udostępnia
-`typescript/lib/tsc`, którego potrzebuje vue-tsc. Pod Bun 1.4.2 mechanizm
-vue-tsc/Volar oparty na przechwyceniu odczytu kompilatora nie obsługuje `.vue`
-poprawnie. TypeScript 6.0.3 + Node przechodzi pełną kontrolę szablonów,
-bez zastępowania komponentów deklaracjami `any`. Vite dev/build działa pod Bun.
-
-Dokumentacja: [Vue](https://vuejs.org/guide/introduction.html),
-[TanStack Table v9](https://tanstack.com/table/latest/docs/framework/vue/guide/sorting),
-[Vue Query](https://tanstack.com/query/latest/docs/framework/vue/installation),
-[Tailwind z Vite](https://tailwindcss.com/docs/installation/using-vite),
-[Vite](https://vite.dev/guide/), [pywebview](https://pywebview.flowrl.com/guide/).
-
-## Co można sprawdzić w prototypie
-
-- Filtry wszystkich wpisów, publikacji Docker i reguł tuneli oraz TCP/UDP.
-- Wyszukiwanie tekstowe, dokładne `:PORT` i `pid:PID` na przykładowej migawce.
-- Sortowanie przez nagłówki; kliknięcie numeru portu otwiera szczegóły.
-- Bind, PID, przykładowe polecenie, mapowanie kontenera i reguła tunelu.
-- Kopiowanie adresu z obsługą odmowy dostępu do schowka.
-- Pusty wynik z resetem filtrów, zamknięcie inspektora oraz dialog informacji.
-- `/` lub Cmd/Ctrl+K ustawia fokus wyszukiwania; Escape czyści wyszukiwanie,
-  zamyka panel albo natywny dialog. Obsługiwane `prefers-reduced-motion`.
-- Eksport przykładu w przeglądarce: `portmanager-preview.json`, w aktualnej
-  kolejności i z aktywnymi filtrami. To **format prototypu**, nie kontrakt
-  `PortEntry[]` CLI/TUI. Natywny zapis pliku należy do Fazy 7.4.
-  Przycisk eksportu w oknie desktopowym jest na tym etapie nieaktywny.
-
-Paleta zaakceptowana przez użytkownika: grafit i stonowany błękit z nutą
-lawendy (`#a9b8f5`), bez zieleni i poświaty. Wąskie okno przenosi inspektor
-pod tabelę. Przy desktopowej szerokości lista i inspektor przewijają się osobno.
+Paleta zaakceptowana dla prototypu pozostaje bez zmian: grafit i stonowany
+błękit z nutą lawendy (`#a9b8f5`). Układ opiera się na gęstej tabeli i bocznym
+inspektorze. Przy węższym oknie inspektor przechodzi pod tabelę.
 [Ikona i źródło projektu](brand/README.md).
 
-## Granica prototypu
+| Narzędzie | Wersja | Rola |
+|---|---:|---|
+| Bun | 1.4.2 | instalacja, Vite i testy |
+| Vue | 3.5.42 | interfejs |
+| TanStack Table / Vue Query | 9.2.4 / 5.102.8 | tabela, sortowanie i cykl odczytu |
+| Vite / plugin Vue | 8.2.2 / 6.0.8 | development i build |
+| Tailwind / plugin Vite | 4.3.3 / 4.3.3 | stylowanie bez konfiguracji PostCSS |
+| pywebview | 6.2.1 | natywne okno i dialog zapisu |
+| TypeScript / vue-tsc | 6.0.3 / 3.3.11 | kontrola typów |
 
-`frontend/src/preview.ts` zawiera jawnie nazwany model `PreviewPort` i fixture.
-Filtr prototypu nie jest implementacją kontraktu core. W Fazie 7.2 trzeba
-zastąpić to adapterem do modeli i filtrów Pythona, bez utrzymywania drugiej
-logiki odczytu. Mostek `DesktopAPI` udostępnia obecnie tylko `get_app_info`.
-Wykrycie `pywebviewready` aktywuje ponowne pobranie metadanych przez Query;
-brak mostka w przeglądarce jest poprawnym trybem podglądu.
+`bun run check` uruchamia vue-tsc przez Node z powodu zgodności Volar;
+Vite i testy działają pod Bun. Wersje są przypięte w `package.json`, `bun.lock`
+i `uv.lock`.
 
-Fazy 7.2–7.5 pozostają otwarte: rzeczywiste migawki, raporty źródeł,
-odświeżanie, eksport z dialogiem systemowym i operacje przez `core/actions`.
-Pełna dystrybucja `.app`, podpisywanie i Windows/Linux nie są częścią prototypu.
-
-## Następny etap — 7.2
-
-Podłączamy rzeczywiste dane z `core/`, zachowując zaakceptowany wygląd i ikonę.
-Adapter mostka ma korzystać z `collect_snapshot()` oraz wspólnych modeli
-i filtrów Pythona. TanStack Query obsłuży cykl odczytu, a Table prezentację
-i sortowanie. Odczyty w tle i odświeżanie co 2 s muszą zachowywać zaznaczenie
-oraz odrzucać nieaktualne wyniki.
-
-Priorytet na macOS: raport odmowy dostępu zamiast pozornie pustej listy portów.
-Widok ma rozróżniać ładowanie, brak wpisów, brak dopasowań i częściowe dane.
-Bez automatycznego podnoszenia uprawnień ani zapytań o exit IP.
-Pełna lista warunków znajduje się w [planie 7.2](plan-mvp.md).
-Potem: kompletność widoku i szczegółów (7.3), eksport zgodny z CLI/TUI
-i operacje przez `core/actions` z potwierdzeniem (7.4), weryfikacja całości (7.5).
-
-## Weryfikacja zamknięcia 7.1
-
-Wykonano 2026-09-08 na macOS ARM64. Wyniki dotyczą szkieletu i prototypu,
-nie gotowego GUI z rzeczywistymi danymi.
-
-| Kontrola | Wynik |
-|---|---|
-| Ruff lint i format | Bez błędów |
-| Pyrefly | 0 błędów, 12 ostrzeżeń |
-| Pełny pytest, Python 3.13.9 | 253 zaliczone, 1 pominięty |
-| Testy wejścia GUI po integracji ikony | 22 zaliczone |
-| Bun | 3 testy zaliczone, 11 asercji |
-| Vue typecheck, Prettier, Vite build | Zaliczono |
-| Przeglądarka | Sortowanie, filtry źródła/PID/UDP, zaznaczenie, pusty wynik, reset, dialog i eksport przykładu |
-| Układ | Sprawdzono 1320 × 860, 900 × 620 oraz 390 × 844; brak poziomego przepełnienia strony mobilnej |
-| Natywny WebKit przez pywebview | Vue, metadane mostka, filtr, załadowanie ikony i zamknięcie testowego okna |
-| sdist i wheel | Zasoby Vue i ICNS w pakiecie, bez `node_modules` |
-| Wheel poza repozytorium | Instalacja w oddzielnym tymczasowym venv; smoke GUI i `--help` zaliczone |
-
-Pominięcie pytest dotyczy systemowego odczytu `psutil.net_connections()`,
-który wymaga dodatkowych uprawnień OS. Testy integracyjne własnych gniazd
-wykonano poza sandboxem blokującym loopback. To nie jest dowód pełnego
-odczytu portów macOS bez uprawnień.
-
-Pakiet prototypu zbudowano osobno w `dist/gui-preview/`, zachowując wcześniejsze
-artefakty MVP. Test instalacji GUI używał tymczasowego venv i wheel z dodatkiem
-`[gui]`; nie był nową matrycą pipx z Fazy 6. Nie opublikowano taga ani release.
-Nie zweryfikowano jeszcze skrótu `.app`, natywnego eksportu, operacji procesów
-w GUI, Windows ani Linux.
-
-## Kontrole i pakowanie
+## Kontrole
 
 ```bash
-# w frontend/
+cd frontend
 bun run format:check
-bun run build
+bun run check
 bun test
+bun run build
 
-# w katalogu repozytorium
+cd ..
 uv run --locked --extra gui ruff check .
 uv run --locked --extra gui ruff format --check .
 uv run --locked --extra gui pyrefly check
 uv run --locked --extra gui pytest -q -rs
-uv run --locked --extra gui python scripts/smoke_gui.py
-uv build
 ```
 
-Smoke GUI wymaga sesji graficznej: otwiera okno, czeka na Vue i mostek,
-sprawdza filtr i ikonę, następnie zamyka własne okno. Nie wykonuje odczytów portów.
+Testy mostu obejmują serializację i kolejność, wspólne filtry, wolny odczyt,
+błąd kolektora, eksport, redakcję sekretów, odmowę polityki i jednorazowość
+zgody.
 
-`bun run build` zapisuje zasoby w `portscanner/gui/assets/`. Hatch dołącza je
-do sdist i wheel, mimo że są ignorowane przez Git. **Najpierw build frontendu,
-potem `uv build`**. Nie budujemy frontendu automatycznie przy instalacji pakietu
-Python. Wheel bez zasobów nadal obsługuje CLI/TUI i zgłasza ich brak przy `--gui`.
-Nie publikuj wheel GUI bez wcześniejszego builda. `node_modules` nie wchodzi
-do dystrybucji. Plik `.icns` znajduje się w pakiecie Python.
+## Zamknięcie Fazy 7.5
 
-Instalacja zbudowanego wheel: `pipx install './dist/portscanner-0.1.0-py3-none-any.whl[gui]'`.
-Wywołaj `portscanner --gui` spoza repozytorium, aby sprawdzić zasoby pakietu.
+Weryfikację wykonano 2026-09-12 na macOS ARM64:
+
+| Kontrola | Wynik |
+|---|---|
+| Natywny WebKit | start, render Vue, mostek i poprawne zamknięcie |
+| Responsywność | licznik WebKit działał podczas wolnego skanu i operacji procesu |
+| Dane i interakcje | raport częściowy, filtr, sortowanie, odświeżenie, trwałość zaznaczenia i szczegóły |
+| Eksport | widoczny posortowany `PortEntry[]`, zapis i odczyt JSON |
+| Proces | domyślne force wyłączone, anulowanie bez skutku, potwierdzenie zakończyło własny proces z gniazdem |
+| Wheel poza repo | CLI, TUI i pełny smoke GUI zaliczone w odizolowanym venv |
+| Zawartość wheel | Vue JS/CSS/HTML, PNG i ICNS obecne |
+| Skrót macOS | `Info.plist` poprawny, ICNS rozpoznany, start przez LaunchServices i standardowy Quit |
+| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 285 zaliczonych, 1 pominięty |
+| Frontend | Prettier, vue-tsc, 3 testy Bun i produkcyjny build Vite zaliczone |
+
+Kontrolowany proces testowy jest własnym procesem Pythona z lokalnym gniazdem.
+Przechodzi tę samą politykę `prepare_kill`/`terminate_target` co rzeczywiste
+użycie; smoke nie omija allowlisty ani ponownej weryfikacji. Systemowy odczyt
+macOS nadal może wymagać dodatkowych uprawnień i jest jawnie raportowany.
+Windows/Linux, podpisywanie oraz samodzielne binarki nie były w zakresie Fazy 7.
+
+`bun run build` zapisuje zasoby w `portscanner/gui/assets/`. Najpierw zbuduj
+frontend, potem wheel przez `uv build`; `node_modules` nie trafia do pakietu.

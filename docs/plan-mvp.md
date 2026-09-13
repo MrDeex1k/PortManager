@@ -188,10 +188,10 @@ Szczegółowa matryca i ograniczenia odczytu macOS: `docs/release.md`.
 
 ---
 
-## Faza 7 — GUI desktopowe `[ ]` (po MVP, zakres macOS)
+## Faza 7 — GUI desktopowe `[x]` (po MVP, zakres macOS)
 
-Następna faza po ukończeniu MVP na macOS. Status: **7.1 zakończona 2026-09-08**;
-zaimplementowany szkielet i interaktywny prototyp na danych przykładowych.
+Następna faza po ukończeniu MVP na macOS. Status: **7.1 zakończona 2026-09-08,
+7.2–7.5 zakończone 2026-09-12**.
 Stack: `pywebview` + Vue,
 TanStack Table/Query, Bun, Vite i Tailwind przez plugin Vite. [Obsługa GUI](gui.md).
 GUI jest trzecim interfejsem do istniejącego `core/`; CLI i TUI pozostają dostępne.
@@ -218,29 +218,29 @@ Ruff lint/format bez błędów, Pyrefly 0 błędów (12 ostrzeżeń), pytest
 zaliczone. Kontrola typów Vue, Prettier i build Vite przeszły.
 Sprawdzono interakcje przeglądarkowe i rzeczywiste okno macOS, również po
 instalacji wheel w oddzielnym środowisku poza repozytorium. Szczegóły
-i granice dowodów: [weryfikacja 7.1](gui.md#weryfikacja-zamknięcia-71).
+i granice dowodów: [dokumentacja GUI](gui.md).
 
-### 7.2 — połączenie GUI z core `[ ]` — następny etap
+### 7.2 — połączenie GUI z core `[x]`
 
 Cel: zachować zaakceptowany wygląd prototypu i zastąpić dane przykładowe
 rzeczywistą migawką. Ten etap obejmuje odczyt; zapis plików i kończenie
 procesów pozostają w 7.4.
 
-- [ ] Mostek Python–JavaScript udostępnia konkretne operacje i serializuje
+- [x] Mostek Python–JavaScript udostępnia konkretne operacje i serializuje
       istniejące modele; bez powielania logiki odczytu, filtrów i polityki procesów.
-- [ ] Zastąpienie `PreviewPort` i fixture adapterem do `collect_snapshot()`:
+- [x] Zastąpienie `PreviewPort` adapterem do `collect_snapshot()` w desktopie:
       porty TCP/UDP, procesy, lokalne IP, publikacje Docker/Compose, tunele i tagi.
       Filtry tekstowe, `:PORT` i `pid:PID` korzystają z istniejącego core.
-- [ ] Zbieranie migawek działa poza wątkiem interfejsu.
+- [x] Zbieranie migawek działa poza wątkiem interfejsu.
       Odświeżenia nie nakładają się i nie zastępują nowszych danych starszym wynikiem.
-- [ ] Automatyczne odświeżanie co 2 s zachowuje tożsamość zaznaczonego wpisu,
+- [x] Automatyczne odświeżanie co 2 s zachowuje tożsamość zaznaczonego wpisu,
       jeśli nadal istnieje; zniknięcie wpisu czyści jego szczegóły.
-- [ ] Raporty źródeł, błędy i ograniczenia uprawnień są widoczne w oknie.
+- [x] Raporty źródeł, błędy i ograniczenia uprawnień są widoczne w oknie.
       GUI nie wykonuje automatycznego zapytania o exit IP ani nie podnosi uprawnień.
-- [ ] Stany ładowania, pustej migawki, braku dopasowań, częściowych danych
+- [x] Stany ładowania, pustej migawki, braku dopasowań, częściowych danych
       i błędu są rozróżnione. Odmowa odczytu macOS nie wygląda jak brak portów.
-- [ ] `core/` zachowuje niezależność od wszystkich interfejsów.
-- [ ] Testy mostka obejmują wolny odczyt, błędy, częściowe dane i kolejność
+- [x] `core/` zachowuje niezależność od wszystkich interfejsów.
+- [x] Testy mostka obejmują wolny odczyt, błędy, częściowe dane i kolejność
       wyników; kontrola rzeczywistych danych w GUI oraz regresja CLI/TUI.
 
 Warunek zakończenia 7.2: GUI pokazuje prawdziwe dane albo jawny raport ich
@@ -250,44 +250,52 @@ W 7.3 dopracowujemy kompletność tabeli, szczegóły i prezentację tych danych
 7.4 dodaje eksport i potwierdzane operacje procesów, a 7.5 zamyka weryfikację
 pełnego przepływu i dostarczenie na macOS.
 
-### 7.3 — widok portów
+### 7.3 — widok portów `[x]`
 
-- [ ] Tabela pokazuje protokół, bind, port, PID, proces, mapowania Docker/Compose,
+- [x] Tabela pokazuje protokół, bind, port, PID, proces, mapowania Docker/Compose,
       reguły tuneli, tagi i źródło danych, zgodnie z kontraktem CLI/TUI.
-- [ ] Filtr tekstowy oraz `:PORT` i `pid:PID`, sortowanie i automatyczne
+- [x] Filtr tekstowy oraz `:PORT` i `pid:PID`, sortowanie i automatyczne
       odświeżanie co 2 s z zachowaniem zaznaczonego wpisu, jeśli nadal istnieje.
-- [ ] Szczegóły zaznaczonego wpisu: argumenty i stan odczytu procesu,
+- [x] Szczegóły zaznaczonego wpisu: argumenty i stan odczytu procesu,
       dane kontenera/Compose oraz reguły tuneli i ich ograniczenia.
-- [ ] Czytelne stany: trwa odczyt, brak dopasowań, częściowe dane i błąd źródła;
+- [x] Czytelne stany: trwa odczyt, brak dopasowań, częściowe dane i błąd źródła;
       lokalne IP prezentowane osobno od bindu i hostname tunelu.
 
-### 7.4 — operacje
+### 7.4 — operacje `[x]`
 
-- [ ] Eksport widocznej, posortowanej migawki do JSON o tym samym kontrakcie
+- [x] Eksport widocznej, posortowanej migawki do JSON o tym samym kontrakcie
       co CLI/TUI, z obsługą wyboru miejsca zapisu, kolizji pliku i błędów.
-- [ ] Kończenie procesu przez `prepare_kill` i `terminate_target`:
+- [x] Kończenie procesu przez `prepare_kill` i `terminate_target`:
       domyślne anulowanie, dialog pokazujący konkretny cel, jawna zgoda
       na force i ponowna weryfikacja w core przed sygnałem.
-- [ ] Zmiana zaznaczenia lub odświeżenie podczas dialogu nie zmienia celu zgody.
+- [x] Zmiana zaznaczenia lub odświeżenie podczas dialogu nie zmienia celu zgody.
       Odmowa polityki, zniknięcie procesu i timeout są obsługiwane w GUI.
-- [ ] Operacje procesów działają poza wątkiem interfejsu, z widocznym stanem
+- [x] Operacje procesów działają poza wątkiem interfejsu, z widocznym stanem
       oczekiwania i bez możliwości powtórzenia tej samej operacji w trakcie.
 
-### 7.5 — weryfikacja i dokumentacja na macOS
+### 7.5 — weryfikacja i dokumentacja na macOS `[x]`
 
-- [ ] Testy mostka i interakcji: start, filtr, sortowanie, odświeżenie, szczegóły,
+- [x] Testy mostka i interakcji: start, filtr, sortowanie, odświeżenie, szczegóły,
       eksport oraz zgoda/anulowanie operacji procesu; regresja CLI/TUI.
-- [ ] Sprawdzenie responsywności podczas wolnych odczytów i operacji, błędów
+- [x] Sprawdzenie responsywności podczas wolnych odczytów i operacji, błędów
       uprawnień oraz poprawnego zamykania okna.
-- [ ] Weryfikacja GUI ze zbudowanymi zasobami poza repozytorium oraz uruchamiania
+- [x] Weryfikacja GUI ze zbudowanymi zasobami poza repozytorium oraz uruchamiania
       przez skrót/ikonkę na macOS, korzystające z tego samego wejścia `--gui`.
-- [ ] Ruff, Pyrefly, pytest i kontrole frontendu bez błędów; dokumentacja PL
+- [x] Ruff, Pyrefly, pytest i kontrole frontendu bez błędów; dokumentacja PL
       instalacji, budowania i obsługi GUI. Commity pozostają po angielsku.
 
 Warunek zakończenia: trzy działające interfejsy — CLI, TUI i GUI — korzystają
 z tej samej logiki core, a GUI ma zweryfikowany na macOS pełny przepływ od
 odczytu portów do eksportu i operacji procesu z potwierdzeniem. Weryfikacja
 Windows/Linux oraz samodzielne binarki i podpisywanie pozostają osobnymi pracami.
+
+Zamknięcie 2026-09-12 na macOS ARM64: pełny smoke natywnego WebKit sprawdził
+wolny odczyt i operację, raport częściowy, filtr, sortowanie, odświeżanie,
+trwałość zaznaczenia, szczegóły, eksport, anulowanie i potwierdzenie zakończenia
+własnego procesu oraz zamknięcie okna. Ten sam przepływ przeszedł z wheel
+zainstalowanego w odizolowanym venv poza repozytorium. `PortManager.app`
+z ikoną ICNS uruchomiono przez LaunchServices i zamknięto standardowym Quit.
+Pełne wyniki kontroli znajdują się w [dokumentacji GUI](gui.md#zamknięcie-fazy-75).
 
 ---
 

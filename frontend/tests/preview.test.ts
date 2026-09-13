@@ -1,23 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import { filterPreview, previewPorts } from '../src/preview'
 
-describe('interakcje przykładowej migawki', () => {
-  test('numer portu jest dokładny, a PID nie pasuje do brakującego właściciela', () => {
-    expect(filterPreview(previewPorts, ':3000', 'all', 'all').map((p) => p.id)).toEqual(['web'])
-    expect(filterPreview(previewPorts, ':300', 'all', 'all')).toEqual([])
-    expect(filterPreview(previewPorts, 'pid:0', 'all', 'all')).toEqual([])
-    expect(filterPreview(previewPorts, 'pid:8421', 'all', 'all').map((p) => p.id)).toEqual(['web'])
+describe('fallback przeglądarkowy', () => {
+  test('dokładnie filtruje port i PID', () => {
+    expect(filterPreview(previewPorts, ':3000')).toEqual(['web'])
+    expect(filterPreview(previewPorts, ':300')).toEqual([])
+    expect(filterPreview(previewPorts, 'pid:8421')).toEqual(['web'])
+    expect(filterPreview(previewPorts, 'pid:0')).toEqual([])
   })
-  test('łączy wyszukiwanie, źródło i protokół', () => {
-    expect(filterPreview(previewPorts, 'WORKSPACE', 'docker', 'TCP')).toHaveLength(3)
-    expect(filterPreview(previewPorts, '', 'docker', 'UDP')).toHaveLength(0)
-    expect(filterPreview(previewPorts, 'example.com', 'tunnels', 'TCP')).toHaveLength(2)
+  test('wyszukuje po danych procesu, kontenera i tunelu', () => {
+    expect(filterPreview(previewPorts, 'WORKSPACE')).toEqual(['postgres', 'redis'])
+    expect(filterPreview(previewPorts, 'example.com')).toEqual(['web'])
+    expect(filterPreview(previewPorts, 'uvicorn')).toEqual(['api'])
   })
-  test('błędny filtr i puste wyniki nie zmieniają fixture', () => {
+  test('nie mutuje danych wejściowych', () => {
     const original = JSON.stringify(previewPorts)
-    expect(filterPreview(previewPorts, ':oops', 'all', 'all')).toEqual([])
-    expect(filterPreview(previewPorts, 'pid:', 'all', 'all')).toEqual([])
-    expect(filterPreview(previewPorts, '', 'all', 'all')).toHaveLength(8)
+    expect(filterPreview(previewPorts, ':oops')).toEqual([])
+    expect(filterPreview(previewPorts, '')).toHaveLength(previewPorts.length)
     expect(JSON.stringify(previewPorts)).toBe(original)
   })
 })

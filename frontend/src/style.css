@@ -99,6 +99,9 @@
   .primary-button {
     @apply inline-flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-medium text-[#20273f] transition-colors hover:bg-[#c1ccfa];
   }
+  .danger-button {
+    @apply inline-flex items-center gap-2 rounded-md border border-[#714646] bg-[#2a1d1f] px-3 py-2 text-[11px] font-medium text-[#efb2b2] transition-colors hover:border-[#985b5b] hover:bg-[#352225] disabled:cursor-not-allowed disabled:opacity-40;
+  }
   .icon-button {
     @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-white/5 hover:text-white;
   }
@@ -205,6 +208,9 @@
   }
   .empty-state {
     @apply flex min-h-[340px] flex-col items-center justify-center px-6;
+  }
+  .error-state {
+    @apply my-8 flex min-h-[280px] flex-col items-center justify-center gap-4 border-y border-line text-sm text-muted;
   }
   .toast {
     @apply fixed bottom-14 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-[#24272b] px-5 py-4 text-xs shadow-lg;
