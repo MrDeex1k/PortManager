@@ -287,3 +287,32 @@ def test_cli_kube_json_and_partial_source_report(
     assert collect.call_args.kwargs["kube"] is True
     assert json.loads(response.stdout)[0]["kubernetes"][0]["resource"] == "service/web"
     assert "kubernetes: partial" in response.stderr
+
+
+def test_nodeports_are_interleaved_in_snapshot_contract_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    combined = listing(*json.loads(services())["items"], *json.loads(nodes())["items"])
+    monkeypatch.setattr(kube, "_run", Mock(return_value=combined))
+    entries = (
+        PortEntry("tcp", "192.0.2.1", 40000, 10),
+        PortEntry("udp", "192.0.2.1", 31080, 3),
+        PortEntry("tcp", "192.0.2.2", 31080, 1),
+        PortEntry("tcp", "192.0.2.1", 31080, 7),
+        PortEntry("tcp", "192.0.2.1", 31080),
+        PortEntry("tcp", "127.0.0.1", 80, 8),
+    )
+    result = kube.collect_kube(entries, IPS)
+    assert result.report.status == "ok"
+    assert [
+        (row.port, row.proto, row.bind, row.pid, row.origin) for row in result.items
+    ] == [
+        (80, "tcp", "127.0.0.1", 8, "socket"),
+        (31080, "tcp", "192.0.2.1", None, "kubernetes"),
+        (31080, "tcp", "192.0.2.1", None, "socket"),
+        (31080, "tcp", "192.0.2.1", 7, "socket"),
+        (31080, "tcp", "192.0.2.2", 1, "socket"),
+        (31080, "udp", "192.0.2.1", 3, "socket"),
+        (40000, "tcp", "192.0.2.1", 10, "socket"),
+    ]
+    assert result.items[1].kubernetes[0].resource == "service/web"

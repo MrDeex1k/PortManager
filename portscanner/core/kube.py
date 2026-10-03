@@ -236,7 +236,18 @@ def collect_kube(
         )
     else:
         return Collection(
-            enriched + mappings,
+            tuple(
+                sorted(
+                    enriched + mappings,
+                    key=lambda entry: (
+                        entry.port,
+                        entry.proto,
+                        entry.bind,
+                        entry.pid if entry.pid is not None else -1,
+                        entry.origin,
+                    ),
+                )
+            ),
             SourceReport(
                 "kubernetes",
                 "ok",
