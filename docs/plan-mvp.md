@@ -1,6 +1,6 @@
 # Plan MVP — fazy
 
-Stan na 2026-09-14. Źródło decyzji: `docs/mvp.md`.
+Stan na 2026-10-03. Źródło decyzji: `docs/mvp.md`.
 
 Kontrakt wejścia (obowiązuje od Fazy 4; GUI dodano w Fazie 7):
 - `portscanner` → TUI (domyślne)
@@ -299,9 +299,26 @@ Pełne wyniki kontroli znajdują się w [dokumentacji GUI](gui.md#zamknięcie-fa
 
 ---
 
-## Po Fazie 7 (kolejność orientacyjna)
+## Faza 8 — Kubernetes, warstwa 2 `[ ]`
 
-1. **Następny etap:** K8s warstwa 2 (`--kube`) — opcjonalny odczyt usług
-   z dostępnego kubeconfig oraz mapowanie NodePort i `kubectl port-forward`.
-2. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §12)
-3. Binarki (PyInstaller) + podpisywanie
+- [x] Opcjonalne `--kube` w CLI, TUI i GUI; domyślnie brak kontaktu z klastrem.
+- [x] Odczyt services i nodes przez kubectl z ograniczonym czasem i raportem błędów.
+- [x] Konfiguracja NodePort dla węzłów dopasowanych po lokalnym IP, bez PID hosta.
+- [x] Lokalne sesje port-forward powiązane z gniazdem i PID; brak zgadywania kontekstu.
+- [x] Wspólny model, JSON, filtry, kolumna CLI/TUI i inspektor GUI.
+- [x] Testy kontrolowanych odpowiedzi klastra i regresje dotychczasowych interfejsów.
+- [x] Dokumentacja zakresu i ograniczeń w [Kubernetes](kubernetes.md).
+- [ ] Weryfikacja na rzeczywistym klastrze: lokalny węzeł, NodePort,
+      port-forward, odmowa RBAC i utrata połączenia.
+- [ ] Przegląd i scalenie brancha funkcjonalnego.
+
+Implementacja gotowa do przeglądu; etap nie jest oznaczony jako zamknięty
+przed próbą z rzeczywistym klastrem. Kontrolowane testy nie dowodzą poprawnego
+odczytu konkretnej konfiguracji użytkownika.
+
+## Po Fazie 8 (kolejność orientacyjna)
+
+1. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §11 specyfikacji)
+2. Binarki (PyInstaller) + podpisywanie
+
+Windows/Linux i self-hosted CI nadal czekają na środowiska.

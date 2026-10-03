@@ -1,5 +1,16 @@
 # Historia zmian
 
+## W przygotowaniu — Kubernetes, warstwa 2 (2026-10-03)
+
+- Opcjonalne `--kube` we wszystkich interfejsach; odczyt usług i węzłów przez kubectl.
+- Konfiguracja NodePort dla węzłów o lokalnym IP i rozpoznawanie lokalnych port-forward.
+- Pole `kubernetes` w JSON i nowe `origin="kubernetes"` bez przypisywania PID.
+- Filtr i szczegóły Kubernetes w GUI oraz wspólna prezentacja CLI/TUI.
+- Weryfikacja: 325 testów Python zaliczonych, 1 pominięty, 3 testy Bun,
+  kontrole statyczne, build i natywny smoke GUI zaliczone.
+  Próba na rzeczywistym klastrze pozostaje otwarta.
+
+
 ## W przygotowaniu — Faza 7 zakończona na macOS (2026-09-12)
 
 - Opcjonalne `--gui`: okno pywebview i Vue, lokalne zasoby w wheel.

@@ -13,6 +13,7 @@ from unittest.mock import patch
 from portscanner.core.actions import KillTarget, terminate_target
 from portscanner.core.model import (
     DockerPort,
+    KubernetesPort,
     LocalIP,
     PortEntry,
     ProcessInfo,
@@ -86,6 +87,12 @@ def main() -> None:
                 docker=(mapping,),
                 tunnels=(route,),
                 tags=(ServiceTag("k8s", "port"),),
+                origin="kubernetes",
+                kubernetes=(
+                    KubernetesPort(
+                        "nodeport", "smoke", "service/web", "80", node="worker"
+                    ),
+                ),
             )
         ]
         if child.poll() is None:
@@ -141,6 +148,28 @@ def main() -> None:
                     "document.body.innerText.includes('Migawka jest częściowa')"
                 )
 
+                window.evaluate_js(
+                    "[...document.querySelectorAll('nav button')].find("
+                    "b=>b.innerText.includes('Kubernetes')).click()"
+                )
+                _wait_js(window, "document.querySelectorAll('tbody tr').length === 1")
+                window.evaluate_js("document.querySelector('tbody tr').click()")
+                _wait_js(
+                    window,
+                    "document.querySelector('.inspector')?.innerText.includes('service/web')",
+                )
+                assert not window.evaluate_js(
+                    "Boolean(document.querySelector('[data-testid=kill-open]'))"
+                )
+                assert window.evaluate_js(
+                    "document.querySelector('.inspector').innerText"
+                    ".includes('Konfiguracja NodePort')"
+                )
+                window.evaluate_js(
+                    "[...document.querySelectorAll('nav button')].find("
+                    "b=>b.innerText.includes('Wszystkie porty')).click()"
+                )
+                _wait_js(window, "document.querySelectorAll('tbody tr').length === 2")
                 window.evaluate_js(
                     "[...document.querySelectorAll('th button')].find("
                     "b=>b.innerText.includes('Port')).click()"
@@ -226,6 +255,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "gui": "ok",
+                            "kubernetes_filter_inspector": "ok",
                             "responsive": "ok",
                             "partial_report": "ok",
                             "filter_sort_refresh": "ok",

@@ -1,4 +1,4 @@
-# API core — kontrakt po Fazie 3
+# API core — wspólny kontrakt CLI/TUI/GUI
 
 Ten kontrakt jest punktem wyjścia dla CLI (Faza 4) i TUI (Faza 5).
 Dokumentacja jest po polsku; nazwy symboli i wiadomości commitów po angielsku.
@@ -10,7 +10,9 @@ Dokumentacja jest po polsku; nazwy symboli i wiadomości commitów po angielsku.
 from dataclasses import asdict
 from portscanner.core import collect_snapshot
 
-snapshot = collect_snapshot(docker=True, tunnels=True, metrics=True, timeout=3.0)
+snapshot = collect_snapshot(
+    docker=True, tunnels=True, metrics=True, kube=False, timeout=3.0
+)
 data = asdict(snapshot)  # dane nadają się do json.dumps; tuple stają się tablicami
 ```
 
@@ -18,11 +20,11 @@ data = asdict(snapshot)  # dane nadają się do json.dumps; tuple stają się ta
 
 | Pole | Typ | Znaczenie |
 |---|---|---|
-| `ports` | `tuple[PortEntry, ...]` | Gniazda oraz publikacje Dockera bez widocznego gniazda |
+| `ports` | `tuple[PortEntry, ...]` | Gniazda, publikacje Dockera i opcjonalne konfiguracje NodePort |
 | `local_ips` | `tuple[LocalIP, ...]` | Adresy lokalnych interfejsów |
 | `docker` | `tuple[DockerPort, ...]` | Wszystkie odczytane publikacje TCP/UDP |
 | `tunnels` | `tuple[TunnelInfo, ...]` | Wykryte procesy connectorów, także bez znanych reguł |
-| `reports` | `tuple[SourceReport, ...]` | Wyniki źródeł: listeners, processes, local_ips, docker, tunnels |
+| `reports` | `tuple[SourceReport, ...]` | Wyniki źródeł: listeners, processes, local_ips, docker, tunnels i opcjonalnie kubernetes |
 
 `SourceReport(source, status, message)` używa stanów `ok`, `partial`,
 `unavailable`, `error`, `disabled`. `ok` z pustymi danymi oznacza udany odczyt
@@ -49,8 +51,9 @@ Dodane pola:
 
 - `docker: tuple[DockerPort, ...]` — publikacje kontenerów dopasowane do wiersza.
 - `tunnels: tuple[TunnelRoute, ...]` — kandydaci z konfiguracji origin.
+- `kubernetes: tuple[KubernetesPort, ...]` — konfiguracja NodePort lub cel port-forward.
 - `tags: tuple[ServiceTag, ...]` — tagi heurystyczne i ich podstawa.
-- `origin: "socket" | "docker"` — pochodzenie wiersza, domyślnie `socket`.
+- `origin: "socket" | "docker" | "kubernetes"` — pochodzenie wiersza, domyślnie `socket`.
 
 `origin="docker"` oznacza publikację zgłoszoną przez Docker bez odpowiadającego
 wpisu psutil. Nie potwierdza TCP LISTEN ani dostępności usługi; `pid` i `process`
@@ -158,7 +161,10 @@ brak metryk, a nie zero połączeń. Nie wykonujemy zapytań do publicznych host
 nie przypadkowe wystąpienie słowa w argumentach. Typowe porty są słabszą
 heurystyką, z uwzględnieniem TCP/UDP. Nawet tag oparty na procesie nie dowodzi
 przynależności do klastra (np. etcd może działać samodzielnie).
-Nie uruchamiamy kubectl, nie odczytujemy kubeconfig i nie kontaktujemy się z klastrem.
+Sama warstwa 1 nie uruchamia kubectl, nie odczytuje kubeconfig i nie kontaktuje się z klastrem.
+
+Jawne `collect_snapshot(kube=True)` włącza warstwę 2 i raport `kubernetes`.
+Szczegóły modeli, lokalności, odczytu klastra i timeoutu: [Kubernetes](kubernetes.md).
 
 ## Walidacja Fazy 3
 

@@ -95,7 +95,11 @@ const visible = computed(() =>
     .filter(
       (row) =>
         source.value === 'all' ||
-        (source.value === 'docker' ? row.docker.length > 0 : row.tunnels.length > 0),
+        (source.value === 'docker'
+          ? row.docker.length > 0
+          : source.value === 'kubernetes'
+            ? row.kubernetes.length > 0
+            : row.tunnels.length > 0),
     ),
 )
 const selected = computed(() => ports.value.find((row) => row.id === selectedId.value) ?? null)
@@ -112,6 +116,12 @@ const sourceItems = computed(() => [
     label: 'Tunele',
     icon: Globe2,
     count: ports.value.filter((p) => p.tunnels.length).length,
+  },
+  {
+    id: 'kubernetes' as const,
+    label: 'Kubernetes',
+    icon: Server,
+    count: ports.value.filter((p) => p.kubernetes.length).length,
   },
 ])
 const protocols: { id: ProtocolFilter; label: string }[] = [
@@ -400,6 +410,20 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-else class="h-7" />
+        <div v-if="source === 'kubernetes'" class="preview-note" role="status">
+          <p
+            v-if="
+              !isPreview && snapshot && !reports.some((report) => report.source === 'kubernetes')
+            "
+          >
+            Odczyt klastra jest wyłączony. Uruchom aplikację z <code>--gui --kube</code>, aby go
+            włączyć.
+          </p>
+          <p v-else>
+            NodePort pokazuje konfigurację węzłów dopasowanych po lokalnym IP; nie potwierdza
+            dostępności usługi. Port-forward pokazuje cel lokalnej sesji.
+          </p>
+        </div>
         <div v-if="snapshotQuery.isError.value && !snapshot" class="error-state" role="alert">
           <CircleAlert :size="22" />
           <p>Nie udało się odczytać systemu.</p>
@@ -504,6 +528,8 @@ onBeforeUnmount(() => {
                           ><Box :size="10" />{{ row.original.docker.length }}</span
                         ><span v-if="row.original.tunnels.length" class="connection tunnel"
                           ><Globe2 :size="10" />{{ row.original.tunnels.length }}</span
+                        ><span v-if="row.original.kubernetes.length" class="connection"
+                          >K8s · {{ row.original.kubernetes[0]?.kind }}</span
                         ><span v-if="row.original.tags.length" class="connection">{{
                           row.original.tags.map((t) => t.name).join(', ')
                         }}</span
@@ -511,7 +537,8 @@ onBeforeUnmount(() => {
                           v-if="
                             !row.original.docker.length &&
                             !row.original.tunnels.length &&
-                            !row.original.tags.length
+                            !row.original.tags.length &&
+                            !row.original.kubernetes.length
                           "
                           class="text-muted"
                           >—</span

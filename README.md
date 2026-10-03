@@ -15,7 +15,8 @@ Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, p
  tcp    *:3000     3000   4123   my-app                               app.example.com
 ```
 
-> Scope: tylko to urządzenie (`localhost`). Bez skanowania zdalnych hostów.
+> Scope: lokalne porty, bez skanowania zdalnych hostów. Opcjonalne `--kube`
+> odczytuje API wybranego klastra, aby wzbogacić informacje o lokalnych portach.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Python >= 3.12](https://img.shields.io/badge/python-%3E%3D3.12-blue)
@@ -71,6 +72,7 @@ uv sync --locked
 uv run portscanner --help   # działa już w Fazie 0
 uv run portscanner          # interaktywny TUI
 uv run portscanner --cli    # jednorazowa tabela portów
+uv run portscanner --cli --kube  # opcjonalny odczyt Kubernetes
 uv run portscanner --cli --json --filter :8080  # JSON dla jednego portu
 ```
 
@@ -212,6 +214,7 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 | [`docs/core-api.md`](docs/core-api.md) | Kontrakt API core i ograniczenia źródeł |
 | [`docs/cli.md`](docs/cli.md) | Flagi CLI, JSON, kody wyjścia i polityka kończenia procesów |
 | [`docs/tui.md`](docs/tui.md) | Skróty TUI, odświeżanie, eksport JSON i dialog kończenia procesu |
+| [`docs/kubernetes.md`](docs/kubernetes.md) | Opcjonalne `--kube`, NodePort, port-forward i ograniczenia |
 | [`docs/gui.md`](docs/gui.md) | GUI, Bun/Vite, pywebview, eksport, operacje i skrót macOS |
 | [`docs/release.md`](docs/release.md) | Instalacja pipx, powtarzalna weryfikacja i matryca systemów |
 | [`CHANGELOG.md`](CHANGELOG.md) | Historia zmian wydania |
@@ -235,8 +238,12 @@ za zgodą użytkownika (2026-09-07): poprawny IPv4, bez zapisywania adresu.
 Testy integracyjne
 wymagają możliwości tworzenia gniazd loopback w środowisku uruchomienia.
 
-Następny zaplanowany etap to opcjonalna warstwa K8s 2 (`--kube`): odczyt usług
-z dostępnego kubeconfig oraz mapowanie NodePort i sesji `kubectl port-forward`.
-Po niej w kolejce są serwer MCP oraz samodzielne, podpisane binarki.
+Warstwa K8s 2 (`--kube`) jest zaimplementowana na branchu funkcjonalnym:
+CLI, TUI i GUI pokazują konfigurację NodePort dla węzłów o lokalnym IP oraz
+cele lokalnych sesji `kubectl port-forward`. [Zakres i ograniczenia](docs/kubernetes.md).
+Weryfikacja tej implementacji: 325 testów Python zaliczonych, 1 pominięty,
+kontrole frontendu i natywny smoke GUI zaliczone.
+Pozostaje próba na rzeczywistym klastrze i przegląd zmian przed scaleniem.
+Dalsza orientacyjna kolejność to serwer MCP oraz samodzielne, podpisane binarki.
 
 Licencja: [GPLv3](LICENSE) © 2026 Jakub Batycki.

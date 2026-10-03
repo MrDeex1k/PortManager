@@ -20,6 +20,7 @@ export const previewPorts: PortRow[] = [
       { pid: 8360, hostname: 'app.example.com', host: 'localhost', port: 3000, path: null },
     ],
     tags: [],
+    kubernetes: [],
     origin: 'socket',
   },
   {
@@ -32,6 +33,7 @@ export const previewPorts: PortRow[] = [
     docker: [],
     tunnels: [],
     tags: [],
+    kubernetes: [],
     origin: 'socket',
   },
   {
@@ -55,6 +57,7 @@ export const previewPorts: PortRow[] = [
     ],
     tunnels: [],
     tags: [],
+    kubernetes: [],
     origin: 'docker',
   },
   {
@@ -78,6 +81,7 @@ export const previewPorts: PortRow[] = [
     ],
     tunnels: [],
     tags: [],
+    kubernetes: [],
     origin: 'docker',
   },
   {
@@ -90,6 +94,7 @@ export const previewPorts: PortRow[] = [
     docker: [],
     tunnels: [],
     tags: [],
+    kubernetes: [],
     origin: 'socket',
   },
   {
@@ -102,6 +107,7 @@ export const previewPorts: PortRow[] = [
     docker: [],
     tunnels: [],
     tags: [],
+    kubernetes: [],
     origin: 'socket',
   },
 ]

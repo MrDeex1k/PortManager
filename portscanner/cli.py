@@ -45,6 +45,11 @@ def _table(entries: list[PortEntry], snapshot: Snapshot, *, no_color: bool) -> N
         console.print(
             "Źródło docker oznacza publikację bez potwierdzonego gniazda hosta."
         )
+    if any(entry.origin == "kubernetes" for entry in entries):
+        console.print(
+            "NodePort: konfiguracja węzła dopasowanego po lokalnym IP; "
+            "nie potwierdza gniazda ani dostępności usługi."
+        )
     if any(entry.proto == "udp" for entry in entries):
         console.print("UDP: związane gniazda bez weryfikacji handshake.")
 
@@ -91,6 +96,9 @@ def run(
     ] = False,
     gui: Annotated[
         bool, typer.Option("--gui", help="Okno desktopowe (wymaga dodatku gui).")
+    ] = False,
+    kube: Annotated[
+        bool, typer.Option("--kube", help="Odczytaj Kubernetes i lokalne port-forward.")
     ] = False,
     json_output: Annotated[
         bool, typer.Option("--json", help="Tablica portów JSON na stdout.")
@@ -159,7 +167,7 @@ def run(
         from portscanner.gui import GuiLaunchError, launch
 
         try:
-            launch()
+            launch(kube=kube)
         except GuiLaunchError as error:
             typer.echo(str(error), err=True)
             raise typer.Exit(code=1) from error
@@ -182,13 +190,21 @@ def run(
             raise typer.BadParameter("Te opcje wymagają --cli.")
         from portscanner.tui import PortScannerApp
 
-        PortScannerApp().run()
+        PortScannerApp(kube=kube).run()
         return
     if force and kill is None:
         raise typer.BadParameter("--force wymaga --kill.")
     if kill is not None:
         if any(
-            (json_output, query is not None, exit_ip, no_docker, no_tunnels, no_metrics)
+            (
+                json_output,
+                query is not None,
+                exit_ip,
+                no_docker,
+                no_tunnels,
+                no_metrics,
+                kube,
+            )
         ):
             raise typer.BadParameter("--kill nie łączy się z opcjami odczytu portów.")
         _kill(kill, force=force, timeout=timeout)
@@ -205,6 +221,7 @@ def run(
         docker=not no_docker,
         tunnels=not no_tunnels,
         metrics=not no_metrics,
+        kube=kube,
         timeout=timeout,
     )
     entries = filter_entries(snapshot.ports, query)

@@ -15,7 +15,9 @@ cd ..
 uv run --locked --extra gui portscanner --gui
 ```
 
-`--gui` nie łączy się z flagami CLI. Bez flag uruchamia się TUI. Zależność
+`--gui --kube` włącza opcjonalny [odczyt Kubernetes](kubernetes.md).
+Filtr Kubernetes i inspektor pokazują NodePort oraz lokalne sesje port-forward.
+`--gui` nie łączy się z pozostałymi flagami CLI. Bez flag uruchamia się TUI. Zależność
 pywebview jest opcjonalna, więc CLI i TUI nie wymagają środowiska graficznego,
 Bun ani Node.
 

@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime
+from functools import partial
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -230,7 +231,7 @@ def _window_url(dev_url: str | None) -> str:
     return str(entry.resolve())
 
 
-def launch() -> None:
+def launch(*, kube: bool = False) -> None:
     """Start na głównym wątku; CLI/TUI nie potrzebują zależności GUI."""
     try:
         webview = importlib.import_module("webview")
@@ -241,7 +242,7 @@ def launch() -> None:
         ) from error
     url = _window_url(os.environ.get("PORTSCANNER_GUI_DEV_URL"))
     try:
-        api = DesktopAPI()
+        api = DesktopAPI(collector=partial(collect_snapshot, kube=kube))
         window = webview.create_window(
             "PortManager",
             url,

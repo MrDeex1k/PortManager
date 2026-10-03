@@ -39,7 +39,7 @@ def test_gui_launch_is_lazy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("portscanner.gui.launch", launch)
     result = CliRunner().invoke(app, ["--gui"])
     assert result.exit_code == 0, result.output
-    launch.assert_called_once_with()
+    launch.assert_called_once_with(kube=False)
 
 
 @pytest.mark.parametrize(

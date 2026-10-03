@@ -153,7 +153,7 @@ def test_source_options_pass_through(source: Mock) -> None:
         ],
     )
     source.assert_called_once_with(
-        docker=False, tunnels=False, metrics=False, timeout=0.5
+        docker=False, tunnels=False, metrics=False, kube=False, timeout=0.5
     )
 
 

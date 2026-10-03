@@ -13,10 +13,10 @@ uv run portscanner --cli --no-docker --no-tunnels --no-color
 
 `portscanner --help` nie wykonuje odczytów systemowych. Brak `--cli` wybiera
 interaktywny [TUI](tui.md), dostępny od Fazy 5.
-Opcje odczytu/kończenia wymagają `--cli`. CLI jest jednorazowe, bez `--watch`.
+Opcje odczytu/kończenia wymagają `--cli`, poza `--kube`, które działa też w TUI/GUI. CLI jest jednorazowe, bez `--watch`.
 
 Tabela pokazuje protokół, bind, port, PID, proces, mapowania Dockera, reguły
-tunelu, tagi i pochodzenie danych. Lokalne adresy interfejsów są pod tabelą.
+tunelu, tagi, mapowania Kubernetes i pochodzenie danych. Lokalne adresy interfejsów są pod tabelą.
 Stan `access_denied` lub `gone` pozostaje widoczny; nieznany PID to `?`.
 Wiersz `origin=docker` nie potwierdza gniazda hosta, a `[config]` przy tunelu
 nie potwierdza dostępności hostname. Tagi są heurystyką. Tekst procesów i
@@ -27,6 +27,7 @@ konfiguracji nie jest interpretowany jako Rich markup ani sterowanie terminalem.
 | Flaga | Znaczenie |
 |---|---|
 | `--cli` | Jednorazowy odczyt wspólnej migawki |
+| `--kube` | Opcjonalny odczyt Kubernetes; [kontrakt i ograniczenia](kubernetes.md) |
 | `--json` | Wyłącznie tablica `PortEntry` na stdout |
 | `--filter QUERY` | Filtr po odczycie; składnia poniżej |
 | `--no-color` | Wyłączenie kolorów tabeli; przy przekierowaniu terminal jest wykrywany automatycznie |
@@ -47,7 +48,8 @@ dotyczy operacji, nie całego skanowania ani twardego limitu DNS.
 - `pid:4123` — dokładny PID; nieznany PID nie pasuje.
 - Pozostały tekst — podciąg bez rozróżniania wielkości liter w protokole,
   bindzie, porcie, PID, nazwie/argumentach procesu, kontenerze, projekcie/usłudze
-  Compose, hostname tunelu, tagu lub pochodzeniu danych.
+  Compose, hostname tunelu, tagu, namespace/zasobie/węźle/kontekście Kubernetes
+  lub pochodzeniu danych.
 - `::1` jest tekstowym filtrem IPv6, nie składnią numeru portu.
 - Puste filtry i błędne zakresy są odrzucane przed odczytem systemu.
 
@@ -63,7 +65,7 @@ Przykładowy kontrakt obejmujący zagnieżdżone dane jest utrwalony w
 `tests/fixtures/cli_ports.json` i sprawdzany przez `typer.testing.CliRunner`.
 
 Raporty `partial`, `unavailable` i `error` trafiają na stderr. Błąd opcjonalnego
-Dockera/tuneli/procesów/IP nie usuwa portów i nie zmienia samodzielnie kodu 0,
+Dockera/tuneli/procesów/IP/Kubernetes nie usuwa portów i nie zmienia samodzielnie kodu 0,
 jeśli źródło listeners zostało odczytane poprawnie. Nadal trzeba czytać stderr.
 Błąd listeners daje kod 1, nawet gdy stdout zawiera częściowe dane z Dockera.
 Nie należy uznawać pustej tablicy za brak portów bez sprawdzenia kodu wyjścia.

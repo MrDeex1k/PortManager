@@ -25,6 +25,14 @@ export interface ProcessInfo {
   name: string | null
   cmdline: string[] | null
 }
+export interface KubernetesPort {
+  kind: 'nodeport' | 'port-forward'
+  namespace: string | null
+  resource: string
+  remote_port: string
+  context: string | null
+  node: string | null
+}
 export interface PortRow {
   id: string
   proto: 'tcp' | 'udp'
@@ -35,7 +43,8 @@ export interface PortRow {
   docker: DockerPort[]
   tunnels: TunnelRoute[]
   tags: ServiceTag[]
-  origin: 'socket' | 'docker'
+  origin: 'socket' | 'docker' | 'kubernetes'
+  kubernetes: KubernetesPort[]
 }
 export interface LocalIP {
   interface: string
@@ -47,5 +56,5 @@ export interface SourceReport {
   status: 'ok' | 'partial' | 'unavailable' | 'error' | 'disabled'
   message: string | null
 }
-export type SourceFilter = 'all' | 'docker' | 'tunnels'
+export type SourceFilter = 'all' | 'docker' | 'tunnels' | 'kubernetes'
 export type ProtocolFilter = 'all' | 'tcp' | 'udp'
