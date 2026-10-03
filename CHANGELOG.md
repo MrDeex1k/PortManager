@@ -13,7 +13,7 @@
 - Grafitowa paleta z błękitnolawendowym akcentem i własna ikona PNG/ICNS.
 - Generator lekkiego `PortManager.app` z ikoną, dostępny po instalacji wheel
   jako `portscanner-macos-app`.
-- Zweryfikowano 285 zaliczonych testów Python (dodatkowo 1 pominięty),
+- Zweryfikowano 289 zaliczonych testów Python (dodatkowo 1 pominięty),
   3 testy Bun, kontrole typów i formatowania oraz pełny natywny przepływ GUI
   z wheel poza repozytorium. Nie opublikowano wydania.
 

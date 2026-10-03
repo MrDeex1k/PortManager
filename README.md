@@ -2,10 +2,10 @@
 
 Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, proces, kontener Docker, tunel.
 
-> **Status: Fazy 0–6 ukończone w uzgodnionym zakresie macOS.** Pakiet zawiera odczyt lokalnych
+> **Status: Fazy 0–7 ukończone w uzgodnionym zakresie macOS.** Pakiet zawiera odczyt lokalnych
 > gniazd TCP/UDP, procesów, IP, Dockera, tuneli i tagów K8s, jednorazowe CLI
-> oraz domyślny TUI z filtrem, sortowaniem, eksportem i kończeniem procesów.
-> Lokalne wydanie 0.1.0 zweryfikowano przez pipx. Testy Windows/Linux są
+> oraz TUI i desktopowe GUI z filtrem, sortowaniem, eksportem i kończeniem procesów.
+> Lokalne wydanie 0.1.0 i GUI z wheel zweryfikowano na macOS. Testy Windows/Linux są
 > odroczone do czasu udostępnienia środowisk; zdalnego release nie opublikowano.
 
 ```text
@@ -24,7 +24,7 @@ Lokalny skaner portów. Pokazuje, **co słucha na Twoim komputerze** — port, p
 
 ## Trzy twarze, jedno serce
 
-Docelowo cała logika będzie w `portscanner/core/` — każdy interfejs będzie widokiem tych samych danych.
+Cała logika znajduje się w `portscanner/core/` — każdy interfejs jest widokiem tych samych danych.
 
 ### TUI — do patrzenia 👀
 
@@ -76,6 +76,20 @@ uv run portscanner --cli --json --filter :8080  # JSON dla jednego portu
 
 Wymagania: Python `>= 3.12` (dev: `3.13`), [`uv`](https://docs.astral.sh/uv/).
 
+GUI wymaga opcjonalnej zależności pywebview i zbudowanych zasobów frontendu:
+
+```bash
+uv sync --locked --extra gui
+cd frontend
+bun install --frozen-lockfile
+bun run build
+cd ..
+uv run --locked --extra gui portscanner --gui
+```
+
+Wymagania frontendu: Bun `1.4.2`. Szczegóły developmentu i tworzenia skrótu
+`PortManager.app`: [GUI](docs/gui.md).
+
 Po zainstalowaniu Lefthook wykonaj `lefthook install` (szczegóły w dokumentacji
 commitów). Kontrole lokalne:
 
@@ -91,7 +105,7 @@ Pakowanie używa Hatchling i jawnego `[build-system]`, wymaganego dla komendy
 pakietu przez [uv](https://docs.astral.sh/uv/concepts/projects/config/#build-systems).
 Dystrybucja MVP używa pipx. Instalację lokalnego wheel, test wydania
 i zasady aktualizacji opisuje [instrukcja wydania](docs/release.md).
-CLI i TUI zweryfikowano na macOS; Windows i Linux czekają na środowiska.
+CLI, TUI i GUI zweryfikowano na macOS; Windows i Linux czekają na środowiska.
 
 ## Odczyt portów z Pythona (Faza 1)
 
@@ -205,12 +219,14 @@ Pełny kontrakt i ograniczenia: [API core](docs/core-api.md).
 
 ## Status
 
-Fazy 0–6 ukończone w uzgodnionym zakresie macOS; wydanie 0.1.0 jest przygotowane lokalnie.
+Fazy 0–7 ukończone w uzgodnionym zakresie macOS; wydanie 0.1.0 jest przygotowane lokalnie.
 Plan w [`docs/plan-mvp.md`](docs/plan-mvp.md). CI na self-hosted Actions
 (Ubuntu x86 + RPi 5B ARM64) czeka na przygotowanie maszyn; do tego czasu
 obowiązuje weryfikacja manualna. Na macOS ARM64 / Python 3.12, 3.13 i 3.14
-każdy przebieg dał 231 zaliczonych i 1 systemowy test pominięty z powodu uprawnień.
-Instalacja pipx i TUI spoza repo działają. Windows/Linux odroczono zgodnie
+macierz zamknięcia Fazy 6 dała po 231 zaliczonych i 1 systemowym teście pominiętym.
+Po Fazie 7 pełny przebieg na Pythonie 3.13 daje 289 zaliczonych i 1 pominięty;
+kontrole frontendu oraz natywny przepływ GUI także są zaliczone. Instalacja pipx,
+TUI i GUI z wheel spoza repo działają. Windows/Linux odroczono zgodnie
 z decyzją użytkownika; szczegóły i ograniczenia w [macierzy wydania](docs/release.md).
 Test rzeczywistych gniazd własnego procesu z odczytem nazwy/argumentów jest zaliczony.
 Odczyt lokalnych interfejsów także sprawdzono na żywo. Exit IP sprawdzono
@@ -218,5 +234,9 @@ na podstawionych odpowiedziach HTTP oraz pojedynczym żądaniem HTTPS do ipify
 za zgodą użytkownika (2026-09-07): poprawny IPv4, bez zapisywania adresu.
 Testy integracyjne
 wymagają możliwości tworzenia gniazd loopback w środowisku uruchomienia.
+
+Następny zaplanowany etap to opcjonalna warstwa K8s 2 (`--kube`): odczyt usług
+z dostępnego kubeconfig oraz mapowanie NodePort i sesji `kubectl port-forward`.
+Po niej w kolejce są serwer MCP oraz samodzielne, podpisane binarki.
 
 Licencja: [GPLv3](LICENSE) © 2026 Jakub Batycki.

@@ -1,11 +1,11 @@
 # Plan MVP — fazy
 
-Stan na 2026-09-08. Źródło decyzji: `docs/mvp.md`.
+Stan na 2026-09-14. Źródło decyzji: `docs/mvp.md`.
 
-Kontrakt wejścia (obowiązuje od Fazy 4, GUI po MVP):
+Kontrakt wejścia (obowiązuje od Fazy 4; GUI dodano w Fazie 7):
 - `portscanner` → TUI (domyślne)
 - `portscanner --cli [--json] [--filter ...]` → CLI
-- `portscanner --gui` → GUI (po MVP); w środowisku graficznym ikonka
+- `portscanner --gui` → GUI; w środowisku graficznym ikonka
   (`.desktop` / skrót w Menu Start / `.app`) odpala ten sam GUI —
   zawsze na tym samym `core/`, nigdy osobna logika.
 
@@ -301,6 +301,7 @@ Pełne wyniki kontroli znajdują się w [dokumentacji GUI](gui.md#zamknięcie-fa
 
 ## Po Fazie 7 (kolejność orientacyjna)
 
-1. K8s warstwa 2 (`--kube`)
+1. **Następny etap:** K8s warstwa 2 (`--kube`) — opcjonalny odczyt usług
+   z dostępnego kubeconfig oraz mapowanie NodePort i `kubectl port-forward`.
 2. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §12)
 3. Binarki (PyInstaller) + podpisywanie

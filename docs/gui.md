@@ -131,7 +131,7 @@ Weryfikację wykonano 2026-09-12 na macOS ARM64:
 | Wheel poza repo | CLI, TUI i pełny smoke GUI zaliczone w odizolowanym venv |
 | Zawartość wheel | Vue JS/CSS/HTML, PNG i ICNS obecne |
 | Skrót macOS | `Info.plist` poprawny, ICNS rozpoznany, start przez LaunchServices i standardowy Quit |
-| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 285 zaliczonych, 1 pominięty |
+| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 289 zaliczonych, 1 pominięty |
 | Frontend | Prettier, vue-tsc, 3 testy Bun i produkcyjny build Vite zaliczone |
 
 Kontrolowany proces testowy jest własnym procesem Pythona z lokalnym gniazdem.

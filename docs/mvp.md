@@ -179,12 +179,14 @@ W MVP: warstwa 1 (słownik `port/proces -> tag`). Warstwa 2 jako flaga `--kube` 
 - [x] Baseline `>=3.12`, dev pin `3.13` (zweryfikowane: 3.9 martwy, 3.10 umiera 2026-10-31, 3.14 za nowy do pakowania).
 - [x] Manager: **`uv`** (`uv python pin/add/sync/run`, lock w `uv.lock`). Lokalnie `uv 0.12.10`.
 - [x] Stack UI: **CLI = Typer + Rich, TUI = Textual** (decyzja zamiast argparse; patrz §2–§4).
-- [x] GUI po MVP: **pywebview + Vue** (lekkie, systemowy webview; Node tylko dla GUI; patrz §5).
+- [x] GUI po MVP: **pywebview + Vue** — zrealizowane w Fazie 7 na macOS
+      (lekkie, systemowy webview; Bun tylko dla budowania GUI; patrz §5).
 - [x] Jakość kodu: **Ruff** (lint + format) + **Pyrefly** (typecheck) od pierwszego kodu (patrz §11).
 - [x] Docker do developmentu: **NIE** — decyzja z 2026-09-06 (patrz §10).
 - [ ] MCP Python SDK jako kolejny renderer `core/` — dopiero po stabilizacji, nie w MVP (patrz §12).
 - [x] Conventional Commits: **wymagane** — lefthook (`lefthook.yml` + `scripts/check_commit_msg.py`) lokalnie.
-- [x] Wejście: `portscanner` → TUI, `--cli` → CLI, `--gui` → GUI po MVP (ikonka desktopowa odpala ten sam GUI na tym samym `core/`; szczegóły w `docs/plan-mvp.md`).
+- [x] Wejście: `portscanner` → TUI, `--cli` → CLI, `--gui` → GUI
+      (ikonka desktopowa odpala ten sam GUI na tym samym `core/`; szczegóły w `docs/plan-mvp.md`).
 - [x] Testy: `pytest` (unit `core/` + `CliRunner` dla `--json` + Textual `Pilot` smoke dla TUI) + matryca manualna Win/Linux/Mac.
 - [x] CI docelowo: self-hosted Actions (Ubuntu x86 + RPi 5B ARM64, przy okazji test ARM64); status: maszyny w przygotowaniu, do tego czasu matryca manualna.
 - [x] Dystrybucja MVP: `pipx` (`pipx install git+...`), binarki (PyInstaller) dopiero po stabilizacji.
