@@ -2,13 +2,18 @@
 
 ## W przygotowaniu — Kubernetes, warstwa 2 (2026-10-03)
 
+- Poprawki przeglądu: wspólny kontekst w pojedynczym poleceniu, limit
+  stdout/stderr podczas odczytu i sprzątanie procesów potomnych.
+  Po poprawkach: 331 testów zaliczonych, 1 pominięty; odczyt OrbStack poprawny.
 - Opcjonalne `--kube` we wszystkich interfejsach; odczyt usług i węzłów przez kubectl.
 - Konfiguracja NodePort dla węzłów o lokalnym IP i rozpoznawanie lokalnych port-forward.
 - Pole `kubernetes` w JSON i nowe `origin="kubernetes"` bez przypisywania PID.
 - Filtr i szczegóły Kubernetes w GUI oraz wspólna prezentacja CLI/TUI.
 - Weryfikacja: 325 testów Python zaliczonych, 1 pominięty, 3 testy Bun,
   kontrole statyczne, build i natywny smoke GUI zaliczone.
-  Próba na rzeczywistym klastrze pozostaje otwarta.
+  Próba na OrbStack zaliczona: port-forward, mapowania NodePort na żywych
+  danych, odmowa RBAC i nieosiągalne API. Pełny skan gniazd na macOS
+  nadal wymaga dodatkowych uprawnień; szczegóły w dokumentacji Kubernetes.
 
 
 ## W przygotowaniu — Faza 7 zakończona na macOS (2026-09-12)

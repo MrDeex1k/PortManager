@@ -308,13 +308,14 @@ Pełne wyniki kontroli znajdują się w [dokumentacji GUI](gui.md#zamknięcie-fa
 - [x] Wspólny model, JSON, filtry, kolumna CLI/TUI i inspektor GUI.
 - [x] Testy kontrolowanych odpowiedzi klastra i regresje dotychczasowych interfejsów.
 - [x] Dokumentacja zakresu i ograniczeń w [Kubernetes](kubernetes.md).
-- [ ] Weryfikacja na rzeczywistym klastrze: lokalny węzeł, NodePort,
-      port-forward, odmowa RBAC i utrata połączenia.
+- [x] Próba na OrbStack: żywe dane NodePort i interfejsów Linux, rzeczywisty
+      port-forward, odmowa RBAC i nieosiągalne API. Zakres i ograniczenia
+      pełnego skanu macOS/Linux opisano w [wynikach](kubernetes.md).
 - [ ] Przegląd i scalenie brancha funkcjonalnego.
 
-Implementacja gotowa do przeglądu; etap nie jest oznaczony jako zamknięty
-przed próbą z rzeczywistym klastrem. Kontrolowane testy nie dowodzą poprawnego
-odczytu konkretnej konfiguracji użytkownika.
+Implementacja i próba na rzeczywistym OrbStack są gotowe do przeglądu.
+Do zamknięcia pozostaje przegląd i scalenie; test ten nie zastępuje pełnej
+matrycy systemów ani weryfikacji systemowego odczytu gniazd z uprawnieniami.
 
 ## Po Fazie 8 (kolejność orientacyjna)
 

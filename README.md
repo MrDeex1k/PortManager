@@ -243,7 +243,9 @@ CLI, TUI i GUI pokazują konfigurację NodePort dla węzłów o lokalnym IP oraz
 cele lokalnych sesji `kubectl port-forward`. [Zakres i ograniczenia](docs/kubernetes.md).
 Weryfikacja tej implementacji: 325 testów Python zaliczonych, 1 pominięty,
 kontrole frontendu i natywny smoke GUI zaliczone.
-Pozostaje próba na rzeczywistym klastrze i przegląd zmian przed scaleniem.
+Próba na rzeczywistym OrbStack zaliczona w zakresie opisanym w dokumentacji
+Kubernetes; pełny odczyt gniazd macOS nadal ograniczają uprawnienia.
+Pozostaje przegląd zmian przed scaleniem.
 Dalsza orientacyjna kolejność to serwer MCP oraz samodzielne, podpisane binarki.
 
 Licencja: [GPLv3](LICENSE) © 2026 Jakub Batycki.

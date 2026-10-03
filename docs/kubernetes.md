@@ -26,11 +26,13 @@ surowego stderr. Nie zmienia kontekstu, usług ani innych zasobów klastra.
 `--kube` zezwala na kontakt z API wybranego klastra, także zdalnego.
 Nie są wykonywane próby połączeń z portami usług.
 
-Wykonywane są dwa odczyty: `kubectl get services --all-namespaces --output=json`
-i `kubectl get nodes --all-namespaces --output=json`, z pozostałym
-`--request-timeout` i timeoutem procesu. Wspólny budżet obu poleceń wynosi
-3 s. Kubectl ma zamknięte stdin. Odpowiedź większa niż 4 MiB jest odrzucana
-po odebraniu. Konto potrzebuje uprawnień listowania services we wszystkich
+Jedno polecenie `kubectl get services,nodes --all-namespaces --output=json`
+ustala kontekst raz dla obu rodzajów zasobów. Budżet polecenia wynosi 3 s,
+z `--request-timeout` i timeoutem procesu. Kubectl ma zamknięte stdin.
+Łączny limit stdout i stderr (4 MiB) jest egzekwowany podczas odbierania.
+Po timeout lub przekroczeniu limitu proces i jego potomkowie są kończone;
+na macOS/Linux używamy osobnej grupy procesów. Windows korzysta z psutil
+i pozostaje poza zweryfikowaną matrycą. Konto potrzebuje uprawnień listowania services we wszystkich
 namespace oraz nodes. Te odczyty nie stanowią atomowej migawki klastra.
 
 Brak kubectl daje `unavailable`, a błąd konfiguracji, RBAC, timeout lub
@@ -103,9 +105,42 @@ Sprawdzają też port-forward, domyślny brak odczytu klastra, serializację mos
 i wybór interfejsu z `--kube`. Natywny smoke GUI obejmuje filtr Kubernetes,
 inspektor NodePort i brak przycisku zakończenia procesu dla wpisu konfiguracji.
 
-Test z rzeczywistym klastrem i jego RBAC pozostaje do wykonania; nie
-uruchamiano ani nie modyfikowano klastra użytkownika.
+### Próba na rzeczywistym OrbStack — 2026-10-03
+
+Klaster `orbstack`, Kubernetes `v1.35.6+orb1`, węzeł Ready. Utworzono
+izolowany namespace z nginx i usługą NodePort; bez zmian istniejących aplikacji.
+
+- Pod osiągnął Ready. HTTP przez lokalny port-forward zwróciło 200.
+- Core rozpoznał rzeczywiste gniazda procesu kubectl (IPv4/IPv6), PID,
+  namespace, kontekst oraz nazwany port docelowy `http`.
+- Odczyt services/nodes przez `collect_kube` dał raport `ok`.
+- NodePort nie został przypisany do macOS, ponieważ IP węzła nie jest lokalnym
+  IP hosta. Parser utworzył poprawne rekordy bez PID dla danych z żywego API
+  i rzeczywistych interfejsów Linux odczytanych w kontenerze z siecią hosta.
+  Nie był to pełny przebieg aplikacji uruchomionej na Linuxie.
+- Rzeczywista odmowa RBAC (impersonowany użytkownik bez dostępu) dała
+  `partial` i zachowała mapowania port-forward. Nie zmieniano ról klastra.
+- Nieosiągalny endpoint w tymczasowej kopii kubeconfig dał `partial` po około
+  1 s przy budżecie 1 s. Nie wyłączano API użytkownika.
+- Pełne CLI na macOS zachowało poprawny JSON i zgłosiło kod 1: brak uprawnień
+  do systemowego odczytu listeners. Kubernetes miał status `ok`. Test
+  port-forward korzystał z rzeczywistych gniazd odczytanych bezpośrednio dla
+  własnego procesu potomnego; nie dowodzi widoczności w zwykłym pełnym skanie.
+
+Po testach potwierdzono brak testowych namespace i procesów port-forward.
+Tymczasowe kopie kubeconfig usunięto; bieżący kontekst pozostał `orbstack`.
+Pełna weryfikacja aplikacji na Linuxie i pełnego odczytu gniazd na macOS
+z odpowiednimi uprawnieniami pozostają osobnymi kontrolami.
 
 Źródła kontraktu Kubernetes:
 [Service i NodePort](https://kubernetes.io/docs/concepts/services-networking/service/),
 [kubectl port-forward](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_port-forward/).
+
+### Poprawki po przeglądzie
+
+Pojedynczy odczyt services/nodes zapobiega mieszaniu kontekstów. Runner
+ogranicza na bieżąco stdout i stderr łącznie oraz sprząta procesy potomne.
+Regresje korzystają z rzeczywistych procesów testowych, w tym symulowanego
+pluginu uwierzytelniającego. Pełna kontrola po poprawkach: **331 testów
+zaliczonych, 1 pominięty**, Ruff i Pyrefly bez błędów. Ponowny odczyt
+rzeczywistego OrbStack przez nowy runner: `kubernetes: ok`.

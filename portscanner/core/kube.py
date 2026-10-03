@@ -4,12 +4,12 @@ import json
 import math
 import re
 import subprocess
-import time
 from dataclasses import replace
 from ipaddress import ip_address
 from pathlib import PureWindowsPath
 from typing import Any
 
+from portscanner.core.kube_command import run_kubectl as _run
 from portscanner.core.model import (
     Collection,
     KubernetesPort,
@@ -191,35 +191,13 @@ def port_forward(entry: PortEntry) -> tuple[KubernetesPort, ...]:
     return tuple(dict.fromkeys(mappings))
 
 
-def _run(resource: str, timeout: float) -> str:
-    result = subprocess.run(
-        [
-            "kubectl",
-            "get",
-            resource,
-            "--all-namespaces",
-            "--output=json",
-            f"--request-timeout={timeout:.3f}s",
-        ],
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=timeout,
-        check=True,
-    )
-    if len(result.stdout.encode("utf-8")) > 4 * 1024 * 1024:
-        raise ValueError("Zbyt duża odpowiedź Kubernetes")
-    return result.stdout
-
-
 def collect_kube(
     entries: tuple[PortEntry, ...],
     local_ips: tuple[LocalIP, ...],
     *,
     timeout: float = 3.0,
 ) -> Collection[PortEntry]:
-    """Jawny odczyt bieżącego kontekstu; wspólny budżet dla services i nodes.
+    """Jawny odczyt services i nodes w jednym kontekście i budżecie czasu.
 
     Kubectl obsługuje kubeconfig i uwierzytelnienie (w tym pluginy exec).
     Nie ujawniamy stderr ani konfiguracji zawierającej poświadczenia.
@@ -230,13 +208,13 @@ def collect_kube(
         replace(entry, kubernetes=port_forward(entry)) for entry in entries
     )
     has_forward = any(entry.kubernetes for entry in enriched)
-    deadline = time.monotonic() + timeout
     try:
-        services = _run("services", timeout)
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise subprocess.TimeoutExpired("kubectl", timeout)
-        nodes = _run("nodes", remaining)
+        # Jedno wywołanie kubectl ustala konfigurację raz dla obu typów zasobów.
+        items = _items(_run("services,nodes", timeout))
+        if any(item.get("kind") not in ("Service", "Node") for item in items):
+            raise ValueError("Nieprawidłowy rodzaj zasobu Kubernetes")
+        services = json.dumps({"items": [i for i in items if i["kind"] == "Service"]})
+        nodes = json.dumps({"items": [i for i in items if i["kind"] == "Node"]})
         mappings = parse_nodeports(services, nodes, local_ips)
     except FileNotFoundError:
         report = SourceReport(

@@ -29,6 +29,7 @@ def listing(*items: dict) -> str:
 def services(proto: str = "TCP", node_port: object = 31080) -> str:
     return listing(
         {
+            "kind": "Service",
             "metadata": {"name": "web", "namespace": "demo"},
             "spec": {
                 "type": "NodePort",
@@ -43,6 +44,7 @@ def services(proto: str = "TCP", node_port: object = 31080) -> str:
 def nodes(address: str = "192.0.2.1") -> str:
     return listing(
         {
+            "kind": "Node",
             "metadata": {"name": "worker"},
             "status": {
                 "addresses": [{"type": "InternalIP", "address": address}],
@@ -189,43 +191,15 @@ def test_cluster_failure_preserves_ports_and_forward_without_exposing_errors(
     assert "secret" not in (result.report.message or "")
 
 
-def test_shared_budget_and_no_more_calls_after_deadline(
+def test_single_invocation_pins_config_for_both_resource_types(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    run = Mock(return_value=services())
+    combined = listing(*json.loads(services())["items"], *json.loads(nodes())["items"])
+    run = Mock(return_value=combined)
     monkeypatch.setattr(kube, "_run", run)
-    monkeypatch.setattr(kube.time, "monotonic", Mock(side_effect=[1.0, 5.0]))
-    result = kube.collect_kube((), IPS, timeout=3)
-    assert result.report.status == "error"
-    run.assert_called_once_with("services", 3)
-
-
-def test_success_and_remaining_budget(monkeypatch: pytest.MonkeyPatch) -> None:
-    run = Mock(side_effect=[services(), nodes()])
-    monkeypatch.setattr(kube, "_run", run)
-    monkeypatch.setattr(kube.time, "monotonic", Mock(side_effect=[1.0, 2.0]))
     result = kube.collect_kube((), IPS, timeout=3)
     assert result.report.status == "ok" and result.items[0].kubernetes
-    assert run.call_args_list[1].args == ("nodes", 2.0)
-
-
-def test_subprocess_is_readonly_noninteractive_and_has_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run = Mock(return_value=subprocess.CompletedProcess([], 0, stdout='{"items": []}'))
-    monkeypatch.setattr(kube.subprocess, "run", run)
-    assert kube._run("services", 2) == '{"items": []}'
-    args, kwargs = run.call_args
-    assert args[0] == [
-        "kubectl",
-        "get",
-        "services",
-        "--all-namespaces",
-        "--output=json",
-        "--request-timeout=2.000s",
-    ]
-    assert kwargs["timeout"] == 2 and kwargs["stdin"] == subprocess.DEVNULL
-    assert not kwargs.get("shell")
+    run.assert_called_once_with("services,nodes", 3)
 
 
 def test_snapshot_optin_and_bridge_serialization(
