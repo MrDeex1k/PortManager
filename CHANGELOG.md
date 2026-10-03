@@ -1,5 +1,12 @@
 # Historia zmian
 
+## W przygotowaniu — zależności (2026-10-03)
+
+- Aktualizacja bezpośrednich i przechodnich zależności npm oraz Pythona.
+- Karencja nowych wydań 3 godziny dla Bun i uv.
+- TypeScript 6.0.3 zachowany z powodu niezgodności 7.0.2 z vue-tsc 3.3.12.
+
+
 ## W przygotowaniu — Kubernetes, warstwa 2 (2026-10-03)
 
 - Poprawki przeglądu: wspólny kontekst w pojedynczym poleceniu, limit

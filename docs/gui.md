@@ -88,16 +88,22 @@ inspektorze. Przy węższym oknie inspektor przechodzi pod tabelę.
 | Narzędzie | Wersja | Rola |
 |---|---:|---|
 | Bun | 1.4.2 | instalacja, Vite i testy |
-| Vue | 3.5.42 | interfejs |
-| TanStack Table / Vue Query | 9.2.4 / 5.102.8 | tabela, sortowanie i cykl odczytu |
-| Vite / plugin Vue | 8.2.2 / 6.0.8 | development i build |
+| Vue | 3.5.43 | interfejs |
+| TanStack Table / Vue Query | 9.2.4 / 5.104.1 | tabela, sortowanie i cykl odczytu |
+| Vite / plugin Vue | 8.3.2 / 6.0.9 | development i build |
 | Tailwind / plugin Vite | 4.3.3 / 4.3.3 | stylowanie bez konfiguracji PostCSS |
 | pywebview | 6.2.1 | natywne okno i dialog zapisu |
-| TypeScript / vue-tsc | 6.0.3 / 3.3.11 | kontrola typów |
+| TypeScript / vue-tsc | 6.0.3 / 3.3.12 | kontrola typów |
 
 `bun run check` uruchamia vue-tsc przez Node z powodu zgodności Volar;
 Vite i testy działają pod Bun. Wersje są przypięte w `package.json`, `bun.lock`
-i `uv.lock`.
+i `uv.lock`. Aktualizacja zależności: 2026-10-03.
+
+Karencja nowych wydań wynosi 3 godziny: `minimumReleaseAge = 10800`
+w `frontend/bunfig.toml` i `exclude-newer = "3 hours"` w `[tool.uv]`.
+TypeScript pozostaje przypięty do 6.0.3: próba wersji 7.0.2 z vue-tsc 3.3.12
+kończy się `ERR_PACKAGE_PATH_NOT_EXPORTED` dla `typescript/lib/tsc`.
+Przed przejściem na 7 należy zweryfikować zgodność nowego wydania vue-tsc.
 
 ## Kontrole
 
