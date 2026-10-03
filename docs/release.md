@@ -126,3 +126,17 @@ wyniki i przyczynę każdego pominięcia. Sprawdź odczyty bez uprawnień admini
 Docker dostępny/niedostępny i konfigurację cloudflared. Operacje kończenia
 sprawdzaj wyłącznie na utworzonym procesie testowym. Dopiero rzeczywiste wyniki
 pozwalają oznaczyć odpowiedni wiersz jako zweryfikowany.
+
+## Aktualizacja zależności — karencja 3 godziny
+
+Od 2026-10-03 uv i Bun pomijają nowe wersje opublikowane w ostatnich 3 godzinach.
+Konfiguracja: `[tool.uv].exclude-newer = "3 hours"` w `pyproject.toml` oraz
+`[install].minimumReleaseAge = 10800` w `frontend/bunfig.toml`.
+Python dopuszcza wyłącznie stabilne wydania (`prerelease = "disallow"`).
+Lockfile zachowują wybrane wersje przy instalacji `--locked` / `--frozen-lockfile`.
+
+Aktualizację wykonujemy przez `uv lock --upgrade` i `bun update --latest --exact`
+w katalogu frontend, a potem sprawdzamy testy, typy, build i natywny smoke GUI.
+TypeScript 7.0.2 jest obecnie niezgodny z vue-tsc 3.3.12; pozostajemy przy
+najnowszym zgodnym 6.0.3. Nie należy zatwierdzać przejścia na 7 przed
+potwierdzeniem działania `bun run check`.

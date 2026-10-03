@@ -47,4 +47,16 @@ def _search_text(entry: PortEntry) -> str:
         )
     fields.extend(route.hostname or "" for route in entry.tunnels)
     fields.extend(tag.name for tag in entry.tags)
+    for mapping in entry.kubernetes:
+        fields.extend(
+            [
+                "kubernetes",
+                mapping.kind,
+                mapping.namespace or "",
+                mapping.resource,
+                mapping.remote_port,
+                mapping.context or "",
+                mapping.node or "",
+            ]
+        )
     return " ".join(fields).casefold()

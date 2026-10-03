@@ -127,3 +127,10 @@ formatowanie `presentation.py`.
 
 Aktualna weryfikacja wydania na macOS, pipx i odroczone środowiska
 Windows/Linux: [Faza 6](release.md).
+
+## Opcjonalny Kubernetes
+
+`portscanner --kube` włącza źródło Kubernetes w tle przy każdym odświeżeniu.
+Kolumna KUBERNETES pokazuje namespace, zasób, port docelowy i pochodzenie
+mapowania. Błędy źródła pozostają w raportach; filtr i eksport uwzględniają
+nowe dane. [Zakres i ograniczenia](kubernetes.md).

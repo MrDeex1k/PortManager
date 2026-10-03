@@ -54,7 +54,15 @@ async function copyAddress() {
         <dt class="text-muted">Protokół</dt>
         <dd class="uppercase">{{ port.proto }}</dd>
         <dt class="text-muted">Źródło wpisu</dt>
-        <dd>{{ port.origin === 'docker' ? 'Publikacja Docker' : 'Gniazdo lokalne' }}</dd>
+        <dd>
+          {{
+            port.origin === 'kubernetes'
+              ? 'Konfiguracja NodePort'
+              : port.origin === 'docker'
+                ? 'Publikacja Docker'
+                : 'Gniazdo lokalne'
+          }}
+        </dd>
         <dt class="text-muted">PID hosta</dt>
         <dd class="font-mono">{{ port.pid ?? '—' }}</dd>
       </dl>
@@ -127,6 +135,23 @@ async function copyAddress() {
         </div>
         <p class="mt-4 text-[11px] leading-relaxed text-muted">
           Reguła konfiguracji nie potwierdza publicznej dostępności adresu.
+        </p>
+      </section>
+      <section v-if="port.kubernetes.length" class="inspector-section">
+        <h3 class="eyebrow">Kubernetes</h3>
+        <div v-for="(mapping, index) in port.kubernetes" :key="index" class="mt-4 text-xs">
+          <p class="break-all font-mono text-accent">
+            {{ mapping.namespace ?? '(namespace nieznany)' }} / {{ mapping.resource }}
+          </p>
+          <p class="mt-2 text-muted">{{ mapping.kind }} → {{ mapping.remote_port }}</p>
+          <p v-if="mapping.node" class="mt-2 text-muted">Węzeł: {{ mapping.node }}</p>
+          <p v-if="mapping.context" class="mt-2 text-muted">
+            Kontekst z argumentów: {{ mapping.context }}
+          </p>
+        </div>
+        <p class="mt-4 text-[11px] leading-relaxed text-muted">
+          NodePort pochodzi z konfiguracji węzła o lokalnym IP i nie potwierdza dostępności usługi.
+          Cel port-forward pochodzi z argumentów procesu.
         </p>
       </section>
       <section v-if="port.tags.length" class="inspector-section">

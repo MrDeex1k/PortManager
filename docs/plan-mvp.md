@@ -1,11 +1,11 @@
 # Plan MVP — fazy
 
-Stan na 2026-09-08. Źródło decyzji: `docs/mvp.md`.
+Stan na 2026-10-03. Źródło decyzji: `docs/mvp.md`.
 
-Kontrakt wejścia (obowiązuje od Fazy 4, GUI po MVP):
+Kontrakt wejścia (obowiązuje od Fazy 4; GUI dodano w Fazie 7):
 - `portscanner` → TUI (domyślne)
 - `portscanner --cli [--json] [--filter ...]` → CLI
-- `portscanner --gui` → GUI (po MVP); w środowisku graficznym ikonka
+- `portscanner --gui` → GUI; w środowisku graficznym ikonka
   (`.desktop` / skrót w Menu Start / `.app`) odpala ten sam GUI —
   zawsze na tym samym `core/`, nigdy osobna logika.
 
@@ -299,8 +299,27 @@ Pełne wyniki kontroli znajdują się w [dokumentacji GUI](gui.md#zamknięcie-fa
 
 ---
 
-## Po Fazie 7 (kolejność orientacyjna)
+## Faza 8 — Kubernetes, warstwa 2 `[ ]`
 
-1. K8s warstwa 2 (`--kube`)
-2. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §12)
-3. Binarki (PyInstaller) + podpisywanie
+- [x] Opcjonalne `--kube` w CLI, TUI i GUI; domyślnie brak kontaktu z klastrem.
+- [x] Odczyt services i nodes przez kubectl z ograniczonym czasem i raportem błędów.
+- [x] Konfiguracja NodePort dla węzłów dopasowanych po lokalnym IP, bez PID hosta.
+- [x] Lokalne sesje port-forward powiązane z gniazdem i PID; brak zgadywania kontekstu.
+- [x] Wspólny model, JSON, filtry, kolumna CLI/TUI i inspektor GUI.
+- [x] Testy kontrolowanych odpowiedzi klastra i regresje dotychczasowych interfejsów.
+- [x] Dokumentacja zakresu i ograniczeń w [Kubernetes](kubernetes.md).
+- [x] Próba na OrbStack: żywe dane NodePort i interfejsów Linux, rzeczywisty
+      port-forward, odmowa RBAC i nieosiągalne API. Zakres i ograniczenia
+      pełnego skanu macOS/Linux opisano w [wynikach](kubernetes.md).
+- [ ] Przegląd i scalenie brancha funkcjonalnego.
+
+Implementacja i próba na rzeczywistym OrbStack są gotowe do przeglądu.
+Do zamknięcia pozostaje przegląd i scalenie; test ten nie zastępuje pełnej
+matrycy systemów ani weryfikacji systemowego odczytu gniazd z uprawnieniami.
+
+## Po Fazie 8 (kolejność orientacyjna)
+
+1. Serwer MCP (`mcp`, `stdio`, read-only domyślnie; §11 specyfikacji)
+2. Binarki (PyInstaller) + podpisywanie
+
+Windows/Linux i self-hosted CI nadal czekają na środowiska.

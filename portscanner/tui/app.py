@@ -66,8 +66,11 @@ class PortScannerApp(App[None]):
     #message { height: auto; max-height: 3; padding: 0 1; }
     """
 
-    def __init__(self, *, export_directory: Path | None = None) -> None:
+    def __init__(
+        self, *, export_directory: Path | None = None, kube: bool = False
+    ) -> None:
         super().__init__()
+        self.kube = kube
         self.export_directory = export_directory or Path.cwd()
         self.snapshot: Snapshot | None = None
         self.table = DataTable[Text](id="ports", cursor_type="row", zebra_stripes=True)
@@ -135,7 +138,7 @@ class PortScannerApp(App[None]):
 
     async def _refresh(self) -> None:
         try:
-            snapshot = await asyncio.to_thread(collect_snapshot)
+            snapshot = await asyncio.to_thread(collect_snapshot, kube=self.kube)
             self.snapshot = snapshot
             self._last_update = datetime.now().strftime("%H:%M:%S")
             self._render_rows()

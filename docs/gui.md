@@ -15,7 +15,9 @@ cd ..
 uv run --locked --extra gui portscanner --gui
 ```
 
-`--gui` nie łączy się z flagami CLI. Bez flag uruchamia się TUI. Zależność
+`--gui --kube` włącza opcjonalny [odczyt Kubernetes](kubernetes.md).
+Filtr Kubernetes i inspektor pokazują NodePort oraz lokalne sesje port-forward.
+`--gui` nie łączy się z pozostałymi flagami CLI. Bez flag uruchamia się TUI. Zależność
 pywebview jest opcjonalna, więc CLI i TUI nie wymagają środowiska graficznego,
 Bun ani Node.
 
@@ -86,16 +88,22 @@ inspektorze. Przy węższym oknie inspektor przechodzi pod tabelę.
 | Narzędzie | Wersja | Rola |
 |---|---:|---|
 | Bun | 1.4.2 | instalacja, Vite i testy |
-| Vue | 3.5.42 | interfejs |
-| TanStack Table / Vue Query | 9.2.4 / 5.102.8 | tabela, sortowanie i cykl odczytu |
-| Vite / plugin Vue | 8.2.2 / 6.0.8 | development i build |
+| Vue | 3.5.43 | interfejs |
+| TanStack Table / Vue Query | 9.2.4 / 5.104.1 | tabela, sortowanie i cykl odczytu |
+| Vite / plugin Vue | 8.3.2 / 6.0.9 | development i build |
 | Tailwind / plugin Vite | 4.3.3 / 4.3.3 | stylowanie bez konfiguracji PostCSS |
 | pywebview | 6.2.1 | natywne okno i dialog zapisu |
-| TypeScript / vue-tsc | 6.0.3 / 3.3.11 | kontrola typów |
+| TypeScript / vue-tsc | 6.0.3 / 3.3.12 | kontrola typów |
 
 `bun run check` uruchamia vue-tsc przez Node z powodu zgodności Volar;
 Vite i testy działają pod Bun. Wersje są przypięte w `package.json`, `bun.lock`
-i `uv.lock`.
+i `uv.lock`. Aktualizacja zależności: 2026-10-03.
+
+Karencja nowych wydań wynosi 3 godziny: `minimumReleaseAge = 10800`
+w `frontend/bunfig.toml` i `exclude-newer = "3 hours"` w `[tool.uv]`.
+TypeScript pozostaje przypięty do 6.0.3: próba wersji 7.0.2 z vue-tsc 3.3.12
+kończy się `ERR_PACKAGE_PATH_NOT_EXPORTED` dla `typescript/lib/tsc`.
+Przed przejściem na 7 należy zweryfikować zgodność nowego wydania vue-tsc.
 
 ## Kontrole
 
@@ -131,7 +139,7 @@ Weryfikację wykonano 2026-09-12 na macOS ARM64:
 | Wheel poza repo | CLI, TUI i pełny smoke GUI zaliczone w odizolowanym venv |
 | Zawartość wheel | Vue JS/CSS/HTML, PNG i ICNS obecne |
 | Skrót macOS | `Info.plist` poprawny, ICNS rozpoznany, start przez LaunchServices i standardowy Quit |
-| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 285 zaliczonych, 1 pominięty |
+| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 289 zaliczonych, 1 pominięty |
 | Frontend | Prettier, vue-tsc, 3 testy Bun i produkcyjny build Vite zaliczone |
 
 Kontrolowany proces testowy jest własnym procesem Pythona z lokalnym gniazdem.

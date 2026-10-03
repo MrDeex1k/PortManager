@@ -19,4 +19,5 @@ def test_socket_without_visible_process_can_be_serialized() -> None:
         "tunnels": [],
         "tags": [],
         "origin": "socket",
+        "kubernetes": [],
     }

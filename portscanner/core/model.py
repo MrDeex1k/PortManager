@@ -74,6 +74,18 @@ class ProcessInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class KubernetesPort:
+    """Konfiguracja NodePort lub cel cmdline lokalnego port-forward."""
+
+    kind: Literal["nodeport", "port-forward"]
+    namespace: str | None
+    resource: str
+    remote_port: str
+    context: str | None = None
+    node: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PortEntry:
     """Migawka gniazda; brak PID oznacza nieznanego właściciela.
 
@@ -90,7 +102,8 @@ class PortEntry:
     docker: tuple[DockerPort, ...] = ()
     tunnels: tuple[TunnelRoute, ...] = ()
     tags: tuple[ServiceTag, ...] = ()
-    origin: Literal["socket", "docker"] = "socket"
+    origin: Literal["socket", "docker", "kubernetes"] = "socket"
+    kubernetes: tuple[KubernetesPort, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

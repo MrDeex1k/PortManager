@@ -4,7 +4,18 @@ import unicodedata
 
 from portscanner.core.model import PortEntry
 
-COLUMNS = ("PROTO", "BIND", "PORT", "PID", "PROC", "DOCKER", "TUNNEL", "TAG", "ŹRÓDŁO")
+COLUMNS = (
+    "PROTO",
+    "BIND",
+    "PORT",
+    "PID",
+    "PROC",
+    "DOCKER",
+    "TUNNEL",
+    "TAG",
+    "KUBERNETES",
+    "ŹRÓDŁO",
+)
 
 
 def safe_text(text: str) -> str:
@@ -44,6 +55,13 @@ def entry_cells(entry: PortEntry) -> tuple[str, ...]:
             docker or "—",
             tunnels or "—",
             tags or "—",
+            "; ".join(
+                f"{m.namespace or '?'}/{m.resource}:{m.remote_port} [{m.kind}]"
+                + (f" node={m.node}" if m.node else "")
+                + (f" context={m.context}" if m.context else "")
+                for m in entry.kubernetes
+            )
+            or "—",
             entry.origin,
         )
     )

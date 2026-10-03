@@ -1,0 +1,3 @@
+[install]
+# Karencja publikacji dla nowych wersji: 3 godziny.
+minimumReleaseAge = 10800
