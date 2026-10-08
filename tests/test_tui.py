@@ -128,7 +128,7 @@ def test_slow_scan_is_nonblocking_and_never_overlaps(source: Mock) -> None:
     entered, release = Event(), Event()
     snapshot = source.return_value
 
-    def slow_read(*, kube: bool = False) -> Snapshot:
+    def slow_read(*, kube: bool = False, kube_discovery: object = None) -> Snapshot:
         entered.set()
         assert release.wait(5)
         return snapshot
@@ -428,6 +428,6 @@ def test_kube_is_forwarded_to_worker(source: Mock) -> None:
         app = PortScannerApp(kube=True)
         async with app.run_test():
             await app.workers.wait_for_complete()
-            source.assert_called_with(kube=True)
+            source.assert_called_with(kube=True, kube_discovery=app._kube_discovery)
 
     asyncio.run(scenario())

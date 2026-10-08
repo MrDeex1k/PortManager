@@ -157,3 +157,18 @@ def test_optional_sources_can_be_disabled(sources: dict[str, Mock]) -> None:
     sources["collect_docker"].assert_not_called()
     sources["collect_tunnels"].assert_not_called()
     assert [r.status for r in result.reports[-2:]] == ["disabled", "disabled"]
+
+
+def test_background_discovery_is_explicit_and_reuses_current_local_rows(
+    sources: dict[str, Mock],
+) -> None:
+    discovery = Mock()
+    discovery.collect.return_value = Collection(
+        (), SourceReport("kubernetes", "partial")
+    )
+    snap.collect_snapshot(kube_discovery=discovery)
+    discovery.collect.assert_not_called()
+    result = snap.collect_snapshot(kube=True, kube_discovery=discovery)
+    assert discovery.collect.call_args.args[0][0].docker
+    assert discovery.collect.call_args.kwargs == {"timeout": 3.0}
+    assert result.reports[-1].source == "kubernetes"

@@ -54,11 +54,17 @@ const pendingKill = ref<{ token: string; target: KillTargetView } | null>(null)
 const forceKill = ref(false)
 const operationBusy = ref(false)
 const notice = ref('')
+const kubeEnabled = ref(false)
+const kubeBusy = ref(false)
 let filterTimer: ReturnType<typeof setTimeout> | undefined
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 let filterRequest = 0
+let refreshCluster = false
 
 const appQuery = useQuery({ queryKey: ['desktop-info', bridgeReady], queryFn: getAppInfo })
+watch(appQuery.data, (value) => {
+  if (value) kubeEnabled.value = value.kube_enabled
+})
 const snapshotQuery = useQuery({
   queryKey: ['system-snapshot', bridgeReady],
   enabled: bridgeReady,
@@ -66,7 +72,9 @@ const snapshotQuery = useQuery({
   queryFn: async () => {
     const api = desktopBridge()
     if (!api) throw new Error('Brak mostu aplikacji desktopowej.')
-    const result = await api.read_snapshot(++requestId.value)
+    const forceKube = refreshCluster
+    refreshCluster = false
+    const result = await api.read_snapshot(++requestId.value, forceKube)
     if (!result.ok) {
       if (result.busy) return snapshot.value
       throw new Error(result.message ?? 'Nie udało się odczytać systemu.')
@@ -77,6 +85,7 @@ const snapshotQuery = useQuery({
 watch(snapshotQuery.data, (value) => {
   if (!value || (snapshot.value && value.request_id < snapshot.value.request_id)) return
   snapshot.value = value
+  kubeEnabled.value = value.kube_enabled
   if (!search.value.trim()) matchedIds.value = new Set(value.ports.map((row) => row.id))
   else void applyCoreFilter()
 })
@@ -84,6 +93,7 @@ watch(snapshotQuery.data, (value) => {
 const ports = computed(() => snapshot.value?.ports ?? previewPorts)
 const localIps = computed(() => snapshot.value?.local_ips ?? previewLocalIPs)
 const reports = computed(() => snapshot.value?.reports ?? previewReports)
+const kubeReport = computed(() => reports.value.find((report) => report.source === 'kubernetes'))
 const isPreview = computed(() => !bridgeReady.value)
 const partialReports = computed(() =>
   reports.value.filter((item) => !['ok', 'disabled'].includes(item.status)),
@@ -197,6 +207,25 @@ function resetFilters() {
 }
 function rejectedBridgeMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? `${fallback}: ${error.message}` : fallback
+}
+async function toggleKubernetes() {
+  const api = desktopBridge()
+  if (!api || kubeBusy.value) return
+  kubeBusy.value = true
+  try {
+    const result = await api.set_kubernetes(!kubeEnabled.value)
+    if (!result.ok) return showNotice(result.message ?? 'Nie udało się zmienić ustawienia.')
+    kubeEnabled.value = result.kube_enabled
+    await snapshotQuery.refetch()
+  } catch (error) {
+    showNotice(rejectedBridgeMessage(error, 'Nie udało się zmienić ustawienia Kubernetes'))
+  } finally {
+    kubeBusy.value = false
+  }
+}
+function refreshSnapshot() {
+  refreshCluster = true
+  void snapshotQuery.refetch()
 }
 async function exportVisible() {
   const current = snapshot.value
@@ -369,7 +398,7 @@ onBeforeUnmount(() => {
               class="secondary-button"
               data-testid="refresh"
               :disabled="snapshotQuery.isFetching.value"
-              @click="snapshotQuery.refetch()"
+              @click="refreshSnapshot"
             >
               <RefreshCw
                 :size="14"
@@ -411,18 +440,31 @@ onBeforeUnmount(() => {
         </div>
         <div v-else class="h-7" />
         <div v-if="source === 'kubernetes'" class="preview-note" role="status">
-          <p
-            v-if="
-              !isPreview && snapshot && !reports.some((report) => report.source === 'kubernetes')
-            "
+          <div class="flex-1">
+            <p v-if="!isPreview && !kubeEnabled">
+              Odczyt Kubernetes jest wyłączony. Włączenie pozwala odczytać bieżący klaster i
+              rozpoznać lokalne sesje port-forward.
+            </p>
+            <p v-else>
+              NodePort pokazuje konfigurację węzłów dopasowanych po lokalnym IP; nie potwierdza
+              dostępności usługi. Port-forward pokazuje cel lokalnej sesji.
+            </p>
+            <p v-if="!isPreview && kubeEnabled" class="mt-2 text-muted">
+              {{ kubeReport?.message || 'Oczekiwanie na odczyt klastra…' }}
+            </p>
+          </div>
+          <button
+            v-if="!isPreview"
+            class="secondary-button shrink-0"
+            data-testid="kubernetes-toggle"
+            role="switch"
+            :aria-checked="kubeEnabled"
+            aria-label="Odczyt Kubernetes"
+            :disabled="kubeBusy || snapshotQuery.isFetching.value"
+            @click="toggleKubernetes"
           >
-            Odczyt klastra jest wyłączony. Uruchom aplikację z <code>--gui --kube</code>, aby go
-            włączyć.
-          </p>
-          <p v-else>
-            NodePort pokazuje konfigurację węzłów dopasowanych po lokalnym IP; nie potwierdza
-            dostępności usługi. Port-forward pokazuje cel lokalnej sesji.
-          </p>
+            {{ kubeEnabled ? 'Wyłącz Kubernetes' : 'Włącz Kubernetes' }}
+          </button>
         </div>
         <div v-if="snapshotQuery.isError.value && !snapshot" class="error-state" role="alert">
           <CircleAlert :size="22" />

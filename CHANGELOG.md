@@ -1,5 +1,15 @@
 # Historia zmian
 
+## W przygotowaniu — usprawnienia Kubernetes (2026-10-08)
+
+- Odczyt klastra w tle co 30 s w GUI/TUI, niezależny od lokalnych skanów.
+- Wiek danych i zachowanie poprzednich mapowań po błędzie odświeżenia;
+  ręczne odświeżenie omija cache, zmiana lokalnych IP unieważnia dane.
+- Przełącznik Kubernetes w GUI, dostępny także z aplikacji uruchomionej w Finderze.
+- Parser korzysta z już zdekodowanych obiektów bez ponownego kodowania JSON.
+- Job Object na Windows sprząta pluginy także po zakończeniu kubectl.
+- Przykłady NodePort/port-forward i wyszukiwanie pól Kubernetes w podglądzie.
+
 ## W przygotowaniu — zależności (2026-10-03)
 
 - Aktualizacja bezpośrednich i przechodnich zależności npm oraz Pythona.

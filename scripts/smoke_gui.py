@@ -87,12 +87,14 @@ def main() -> None:
                 docker=(mapping,),
                 tunnels=(route,),
                 tags=(ServiceTag("k8s", "port"),),
-                origin="kubernetes",
+                origin="kubernetes" if api._kube else "socket",
                 kubernetes=(
                     KubernetesPort(
                         "nodeport", "smoke", "service/web", "80", node="worker"
                     ),
-                ),
+                )
+                if api._kube
+                else (),
             )
         ]
         if child.poll() is None:
@@ -120,6 +122,11 @@ def main() -> None:
                 SourceReport("processes", "partial", "Kontrolowany raport testowy."),
                 SourceReport("docker", "ok"),
                 SourceReport("tunnels", "ok"),
+            )
+            + (
+                (SourceReport("kubernetes", "ok", "Dane klastra sprzed 0 s."),)
+                if api._kube
+                else ()
             ),
         )
 
@@ -152,7 +159,23 @@ def main() -> None:
                     "[...document.querySelectorAll('nav button')].find("
                     "b=>b.innerText.includes('Kubernetes')).click()"
                 )
+                _wait_js(window, "document.querySelectorAll('tbody tr').length === 0")
+                _wait_js(
+                    window,
+                    "!document.querySelector('[data-testid=kubernetes-toggle]').disabled",
+                )
+                window.evaluate_js(
+                    "document.querySelector('[data-testid=kubernetes-toggle]').click()"
+                )
+                _wait_js(
+                    window,
+                    "document.querySelector('[data-testid=kubernetes-toggle]')"
+                    ".getAttribute('aria-checked') === 'true'",
+                )
                 _wait_js(window, "document.querySelectorAll('tbody tr').length === 1")
+                assert window.evaluate_js(
+                    "document.body.innerText.includes('Dane klastra sprzed 0 s.')"
+                )
                 window.evaluate_js("document.querySelector('tbody tr').click()")
                 _wait_js(
                     window,
@@ -165,6 +188,22 @@ def main() -> None:
                     "document.querySelector('.inspector').innerText"
                     ".includes('Konfiguracja NodePort')"
                 )
+                _wait_js(
+                    window,
+                    "!document.querySelector('[data-testid=kubernetes-toggle]').disabled",
+                )
+                window.evaluate_js(
+                    "document.querySelector('[data-testid=kubernetes-toggle]').click()"
+                )
+                _wait_js(window, "document.querySelectorAll('tbody tr').length === 0")
+                _wait_js(
+                    window,
+                    "!document.querySelector('[data-testid=kubernetes-toggle]').disabled",
+                )
+                window.evaluate_js(
+                    "document.querySelector('[data-testid=kubernetes-toggle]').click()"
+                )
+                _wait_js(window, "document.querySelectorAll('tbody tr').length === 1")
                 window.evaluate_js(
                     "[...document.querySelectorAll('nav button')].find("
                     "b=>b.innerText.includes('Wszystkie porty')).click()"
@@ -256,6 +295,7 @@ def main() -> None:
                         {
                             "gui": "ok",
                             "kubernetes_filter_inspector": "ok",
+                            "kubernetes_toggle": "ok",
                             "responsive": "ok",
                             "partial_report": "ok",
                             "filter_sort_refresh": "ok",

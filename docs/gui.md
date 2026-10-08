@@ -16,6 +16,8 @@ uv run --locked --extra gui portscanner --gui
 ```
 
 `--gui --kube` włącza opcjonalny [odczyt Kubernetes](kubernetes.md).
+Można go również włączyć i wyłączyć przełącznikiem w widoku Kubernetes,
+także przy starcie z Findera. Bez flagi jest domyślnie wyłączony.
 Filtr Kubernetes i inspektor pokazują NodePort oraz lokalne sesje port-forward.
 `--gui` nie łączy się z pozostałymi flagami CLI. Bez flag uruchamia się TUI. Zależność
 pywebview jest opcjonalna, więc CLI i TUI nie wymagają środowiska graficznego,
@@ -57,6 +59,11 @@ usług exit IP i nie podnosi uprawnień.
 - Odświeżanie co 2 sekundy przez TanStack Query. Odczyty nie nakładają się,
   starsza odpowiedź nie zastępuje nowszej, a zaznaczenie jest zachowywane po
   stabilnym kluczu `(proto, bind, port, pid, origin)`.
+- Kubernetes jest odczytywany w tle co 30 s; widok pokazuje wiek danych.
+  Awaria klastra zachowuje poprzednie mapowania z raportem `partial`.
+  Przycisk „Odśwież” omija cache klastra.
+- Podgląd przeglądarkowy zawiera przykładowy NodePort i port-forward;
+  wyszukiwanie obejmuje namespace, zasób, port docelowy, węzeł i kontekst.
 - Wyszukiwanie tekstowe oraz dokładne `:PORT` i `pid:PID` przez wspólny filtr
   Pythona. Filtry źródła i protokołu oraz sortowanie są stanem prezentacji.
 - Tabela i inspektor pokazują bind, PID, stan i argumenty procesu, mapowania
