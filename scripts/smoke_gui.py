@@ -135,6 +135,15 @@ def main() -> None:
         terminate_target(target, force=force, timeout=timeout)
 
     api = gui_app.DesktopAPI(collector=collector, terminate=slow_terminate)
+    read_snapshot = api.read_snapshot
+    forced_refreshes: list[int] = []
+
+    def busy_once(request_id: int, refresh_kube: bool = False) -> dict:
+        if refresh_kube:
+            forced_refreshes.append(request_id)
+            if len(forced_refreshes) == 1:
+                return {"ok": False, "busy": True, "request_id": request_id}
+        return read_snapshot(request_id, refresh_kube)
 
     with tempfile.TemporaryDirectory(prefix="portmanager-gui-smoke-") as directory:
         export_path = Path(directory) / "visible.json"
@@ -173,6 +182,16 @@ def main() -> None:
                     ".getAttribute('aria-checked') === 'true'",
                 )
                 _wait_js(window, "document.querySelectorAll('tbody tr').length === 1")
+                _wait_js(
+                    window, "!document.querySelector('[data-testid=refresh]').disabled"
+                )
+                window.evaluate_js(
+                    "document.querySelector('[data-testid=refresh]').click()"
+                )
+                deadline = time.monotonic() + 10
+                while len(forced_refreshes) < 2:
+                    assert time.monotonic() < deadline, "Manual refresh lost after busy"
+                    time.sleep(0.05)
                 assert window.evaluate_js(
                     "document.body.innerText.includes('Dane klastra sprzed 0 s.')"
                 )
@@ -296,6 +315,7 @@ def main() -> None:
                             "gui": "ok",
                             "kubernetes_filter_inspector": "ok",
                             "kubernetes_toggle": "ok",
+                            "manual_refresh_busy_retry": "ok",
                             "responsive": "ok",
                             "partial_report": "ok",
                             "filter_sort_refresh": "ok",
@@ -319,6 +339,7 @@ def main() -> None:
             with (
                 patch.object(webview, "start", start),
                 patch.object(gui_app, "DesktopAPI", return_value=api),
+                patch.object(api, "read_snapshot", busy_once),
             ):
                 gui_app.launch()
         finally:

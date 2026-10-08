@@ -76,7 +76,10 @@ const snapshotQuery = useQuery({
     refreshCluster = false
     const result = await api.read_snapshot(++requestId.value, forceKube)
     if (!result.ok) {
-      if (result.busy) return snapshot.value
+      if (result.busy) {
+        if (forceKube) refreshCluster = true
+        return snapshot.value
+      }
       throw new Error(result.message ?? 'Nie udało się odczytać systemu.')
     }
     return result
