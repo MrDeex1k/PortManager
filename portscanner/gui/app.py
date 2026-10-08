@@ -9,7 +9,6 @@ import uuid
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime
-from functools import partial
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,7 @@ from portscanner.core.actions import (
     terminate_target,
 )
 from portscanner.core.filtering import filter_entries
+from portscanner.core.kube_cache import KubeDiscovery
 from portscanner.core.model import PortEntry, Snapshot
 from portscanner.core.redaction import redact_cmdline
 from portscanner.core.snapshot import collect_snapshot
@@ -37,11 +37,14 @@ class DesktopAPI:
     def __init__(
         self,
         *,
-        collector: Callable[[], Snapshot] = collect_snapshot,
+        collector: Callable[[], Snapshot] | None = None,
+        kube: bool = False,
         prepare: Callable[[int], KillTarget] = prepare_kill,
         terminate: Callable[..., None] = terminate_target,
     ) -> None:
-        self._collector = collector
+        self._collector = collector or self._collect
+        self._kube = kube
+        self._kube_discovery = KubeDiscovery()
         self._prepare = prepare
         self._terminate = terminate
         self._scan_lock = threading.Lock()
@@ -57,21 +60,53 @@ class DesktopAPI:
         self._window = window
         self._save_dialog_type = save_dialog_type
 
-    def get_app_info(self) -> dict[str, str]:
+    def _collect(self) -> Snapshot:
+        return collect_snapshot(kube=self._kube, kube_discovery=self._kube_discovery)
+
+    def _close(self) -> None:
+        self._kube_discovery.close()
+
+    def get_app_info(self) -> dict[str, Any]:
         return {
             "name": "PortManager",
             "version": version("portscanner"),
             "mode": "desktop",
             "stage": "live",
+            "kube_enabled": self._kube,
         }
 
-    def read_snapshot(self, request_id: int) -> dict[str, Any]:
+    def set_kubernetes(self, enabled: bool) -> dict[str, Any]:
+        """Jawne włączenie odczytu klastra także przy uruchomieniu z Findera."""
+        if not isinstance(enabled, bool):
+            return _error("Nieprawidłowe ustawienie Kubernetes.")
+        if not self._scan_lock.acquire(blocking=False):
+            return _error("Poczekaj na zakończenie odświeżania.", busy=True)
+        try:
+            if self._kube != enabled:
+                self._kube = enabled
+                self._kube_discovery.reset()
+                with self._state_lock:
+                    self._generation += 1
+                    self._snapshot = None
+            return {"ok": True, "kube_enabled": self._kube}
+        finally:
+            self._scan_lock.release()
+
+    def read_snapshot(
+        self, request_id: int, refresh_kube: bool = False
+    ) -> dict[str, Any]:
         """Zbierz jedną migawkę; kolejny odczyt nie nakłada się na trwający."""
         if isinstance(request_id, bool) or not isinstance(request_id, int):
             return _error("Nieprawidłowy identyfikator odświeżenia.", request_id=0)
+        if not isinstance(refresh_kube, bool):
+            return _error(
+                "Nieprawidłowe ustawienie odświeżenia.", request_id=request_id
+            )
         if not self._scan_lock.acquire(blocking=False):
             return {"ok": False, "busy": True, "request_id": request_id}
         try:
+            if refresh_kube and self._kube:
+                self._kube_discovery.request_refresh()
             try:
                 snapshot = self._collector()
             except Exception:
@@ -87,6 +122,7 @@ class DesktopAPI:
                 "busy": False,
                 "request_id": request_id,
                 "generation": generation,
+                "kube_enabled": self._kube,
                 "collected_at": datetime.now()
                 .astimezone()
                 .isoformat(timespec="seconds"),
@@ -241,8 +277,8 @@ def launch(*, kube: bool = False) -> None:
             "Przy instalacji pakietu wybierz portscanner[gui]."
         ) from error
     url = _window_url(os.environ.get("PORTSCANNER_GUI_DEV_URL"))
+    api = DesktopAPI(kube=kube)
     try:
-        api = DesktopAPI(collector=partial(collect_snapshot, kube=kube))
         window = webview.create_window(
             "PortManager",
             url,
@@ -265,3 +301,5 @@ def launch(*, kube: bool = False) -> None:
             "Nie udało się uruchomić okna GUI. Sprawdź sesję graficzną "
             "i instalację pywebview dla swojego systemu."
         ) from error
+    finally:
+        api._close()

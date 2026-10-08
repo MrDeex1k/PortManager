@@ -5,6 +5,7 @@ export interface AppInfo {
   version: string
   mode: 'desktop' | 'browser'
   stage: 'preview' | 'live'
+  kube_enabled: boolean
 }
 
 export interface SnapshotSuccess {
@@ -12,6 +13,7 @@ export interface SnapshotSuccess {
   busy: false
   request_id: number
   generation: number
+  kube_enabled: boolean
   collected_at: string
   ports: PortRow[]
   local_ips: LocalIP[]
@@ -37,8 +39,9 @@ export type ActionResult = { ok: true; status: 'terminated'; pid: number } | Bri
 export type ExportResult =
   { ok: true; status: 'saved'; path: string } | { ok: true; status: 'cancelled' } | BridgeFailure
 export interface DesktopBridge {
+  set_kubernetes(enabled: boolean): Promise<{ ok: true; kube_enabled: boolean } | BridgeFailure>
   get_app_info(): Promise<AppInfo>
-  read_snapshot(requestId: number): Promise<SnapshotResult>
+  read_snapshot(requestId: number, refreshKube?: boolean): Promise<SnapshotResult>
   filter_ports(generation: number, query: string | null): Promise<FilterResult>
   export_ports(generation: number, ids: string[]): Promise<ExportResult>
   prepare_process(pid: number): Promise<PrepareResult>
@@ -57,7 +60,14 @@ export function desktopBridge(): DesktopBridge | undefined {
 
 export async function getAppInfo(): Promise<AppInfo> {
   const api = window.pywebview?.api
-  if (!api) return { name: 'PortManager', version: '0.1.0', mode: 'browser', stage: 'preview' }
+  if (!api)
+    return {
+      name: 'PortManager',
+      version: '0.1.0',
+      mode: 'browser',
+      stage: 'preview',
+      kube_enabled: false,
+    }
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([

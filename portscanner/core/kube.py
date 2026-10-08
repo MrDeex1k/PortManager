@@ -43,10 +43,18 @@ def _name(value: object) -> str:
 def parse_nodeports(
     services: str, nodes: str, local_ips: tuple[LocalIP, ...]
 ) -> tuple[PortEntry, ...]:
+    return _parse_nodeports(_items(services), _items(nodes), local_ips)
+
+
+def _parse_nodeports(
+    services: list[dict[str, Any]],
+    nodes: list[dict[str, Any]],
+    local_ips: tuple[LocalIP, ...],
+) -> tuple[PortEntry, ...]:
     """Konfiguracja tylko dla IP lokalnego węzła; bez przypisywania PID hosta."""
     local = {ip_address(ip.address) for ip in local_ips}
     local_nodes: set[tuple[str, str]] = set()
-    for node in _items(nodes):
+    for node in nodes:
         name = _name(node["metadata"]["name"])
         for address in node.get("status", {}).get("addresses", []):
             if address.get("type") not in ("InternalIP", "ExternalIP"):
@@ -55,7 +63,8 @@ def parse_nodeports(
             if ip in local and not ip.is_loopback and not ip.is_unspecified:
                 local_nodes.add((name, str(ip)))
     groups: dict[tuple[str, str, int], list[KubernetesPort]] = {}
-    for service in _items(services):
+    ordered_nodes = sorted(local_nodes)
+    for service in services:
         metadata, spec = service["metadata"], service["spec"]
         if spec.get("type") not in ("NodePort", "LoadBalancer"):
             continue
@@ -66,7 +75,7 @@ def parse_nodeports(
                 continue
             proto = "tcp" if protocol == "TCP" else "udp"
             node_port, service_port = _port(item["nodePort"]), _port(item["port"])
-            for node_name, bind in sorted(local_nodes):
+            for node_name, bind in ordered_nodes:
                 mapping = KubernetesPort(
                     kind="nodeport",
                     namespace=namespace,
@@ -191,8 +200,7 @@ def port_forward(entry: PortEntry) -> tuple[KubernetesPort, ...]:
     return tuple(dict.fromkeys(mappings))
 
 
-def collect_kube(
-    entries: tuple[PortEntry, ...],
+def collect_nodeports(
     local_ips: tuple[LocalIP, ...],
     *,
     timeout: float = 3.0,
@@ -204,22 +212,18 @@ def collect_kube(
     """
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout musi być dodatni i skończony")
-    enriched = tuple(
-        replace(entry, kubernetes=port_forward(entry)) for entry in entries
-    )
-    has_forward = any(entry.kubernetes for entry in enriched)
     try:
         # Jedno wywołanie kubectl ustala konfigurację raz dla obu typów zasobów.
         items = _items(_run("services,nodes", timeout))
         if any(item.get("kind") not in ("Service", "Node") for item in items):
             raise ValueError("Nieprawidłowy rodzaj zasobu Kubernetes")
-        services = json.dumps({"items": [i for i in items if i["kind"] == "Service"]})
-        nodes = json.dumps({"items": [i for i in items if i["kind"] == "Node"]})
-        mappings = parse_nodeports(services, nodes, local_ips)
-    except FileNotFoundError:
-        report = SourceReport(
-            "kubernetes", "partial" if has_forward else "unavailable", "Brak kubectl."
+        mappings = _parse_nodeports(
+            [i for i in items if i["kind"] == "Service"],
+            [i for i in items if i["kind"] == "Node"],
+            local_ips,
         )
+    except FileNotFoundError:
+        report = SourceReport("kubernetes", "unavailable", "Brak kubectl.")
     except (
         subprocess.SubprocessError,
         OSError,
@@ -230,24 +234,13 @@ def collect_kube(
     ):
         report = SourceReport(
             "kubernetes",
-            "partial" if has_forward else "error",
+            "error",
             "Odczyt klastra niedostępny (kubeconfig, uprawnienia, timeout lub dane). "
             "Lokalne sesje port-forward pozostają widoczne.",
         )
     else:
         return Collection(
-            tuple(
-                sorted(
-                    enriched + mappings,
-                    key=lambda entry: (
-                        entry.port,
-                        entry.proto,
-                        entry.bind,
-                        entry.pid if entry.pid is not None else -1,
-                        entry.origin,
-                    ),
-                )
-            ),
+            mappings,
             SourceReport(
                 "kubernetes",
                 "ok",
@@ -255,4 +248,43 @@ def collect_kube(
                 "bez weryfikacji dostępności.",
             ),
         )
-    return Collection(enriched, report)
+    return Collection((), report)
+
+
+def merge_kube(
+    entries: tuple[PortEntry, ...], cluster: Collection[PortEntry]
+) -> Collection[PortEntry]:
+    """Lokalne sesje są rozpoznawane z bieżącej migawki, niezależnie od klastra."""
+    enriched = tuple(
+        replace(entry, kubernetes=port_forward(entry)) for entry in entries
+    )
+    report = cluster.report
+    if report.status in ("error", "unavailable") and any(
+        entry.kubernetes for entry in enriched
+    ):
+        report = replace(report, status="partial")
+    ports = enriched
+    if cluster.items:
+        ports = tuple(
+            sorted(
+                enriched + cluster.items,
+                key=lambda entry: (
+                    entry.port,
+                    entry.proto,
+                    entry.bind,
+                    entry.pid if entry.pid is not None else -1,
+                    entry.origin,
+                ),
+            )
+        )
+    return Collection(ports, report)
+
+
+def collect_kube(
+    entries: tuple[PortEntry, ...],
+    local_ips: tuple[LocalIP, ...],
+    *,
+    timeout: float = 3.0,
+) -> Collection[PortEntry]:
+    """Jednorazowy, synchroniczny odczyt dla CLI i publicznego API core."""
+    return merge_kube(entries, collect_nodeports(local_ips, timeout=timeout))

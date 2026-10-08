@@ -161,6 +161,7 @@ def test_bridge_exposes_live_metadata_and_operations() -> None:
         "prepare_process",
         "read_snapshot",
         "terminate_process",
+        "set_kubernetes",
     }
 
 
@@ -229,6 +230,39 @@ def test_bridge_reports_collection_error_without_details() -> None:
         "message": "Nie udało się zebrać migawki systemu.",
         "request_id": 1,
     }
+
+
+def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collector = Mock(return_value=_snapshot())
+    monkeypatch.setattr(gui, "collect_snapshot", collector)
+    api = gui.DesktopAPI()
+    assert api.get_app_info()["kube_enabled"] is False
+    first = api.read_snapshot(1)
+    assert collector.call_args.kwargs["kube"] is False
+    assert api.set_kubernetes(True) == {"ok": True, "kube_enabled": True}
+    assert api.filter_ports(first["generation"], None)["ok"] is False
+    enabled = api.read_snapshot(2)
+    assert enabled["kube_enabled"] is True
+    collector.assert_called_with(kube=True, kube_discovery=api._kube_discovery)
+    assert api.set_kubernetes(False)["ok"] is True
+    assert api.read_snapshot(3)["kube_enabled"] is False
+    assert collector.call_args.kwargs["kube"] is False
+    invalid: Any = "true"
+    assert api.set_kubernetes(invalid)["ok"] is False
+    api._close()
+
+
+def test_gui_toggle_does_not_race_snapshot_read() -> None:
+    api = gui.DesktopAPI()
+    api._scan_lock.acquire()
+    try:
+        assert api.set_kubernetes(True)["busy"] is True
+        assert api.get_app_info()["kube_enabled"] is False
+    finally:
+        api._scan_lock.release()
+        api._close()
 
 
 def test_export_preserves_visible_order_and_cli_contract(tmp_path: Path) -> None:

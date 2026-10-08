@@ -16,6 +16,7 @@ from textual.widgets import DataTable, Footer, Header, Input, Static
 from portscanner.core import collect_snapshot
 from portscanner.core.actions import ProcessActionError, prepare_kill, terminate_target
 from portscanner.core.filtering import filter_entries
+from portscanner.core.kube_cache import KubeDiscovery
 from portscanner.core.model import PortEntry, Snapshot
 from portscanner.presentation import COLUMNS, entry_cells, safe_text
 from portscanner.tui.dialogs import KillScreen
@@ -71,6 +72,7 @@ class PortScannerApp(App[None]):
     ) -> None:
         super().__init__()
         self.kube = kube
+        self._kube_discovery = KubeDiscovery()
         self.export_directory = export_directory or Path.cwd()
         self.snapshot: Snapshot | None = None
         self.table = DataTable[Text](id="ports", cursor_type="row", zebra_stripes=True)
@@ -101,7 +103,7 @@ class PortScannerApp(App[None]):
         for column in COLUMNS:
             self.table.add_column(column, key=column)
         self.table.focus()
-        self.set_interval(2.0, self.action_refresh)
+        self.set_interval(2.0, self._periodic_refresh)
         self.action_refresh()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
@@ -130,15 +132,22 @@ class PortScannerApp(App[None]):
         self._sort_process = not self._sort_process
         self._render_rows(sort=True)
 
-    def action_refresh(self) -> None:
+    def _periodic_refresh(self) -> None:
+        self.action_refresh(force_kube=False)
+
+    def action_refresh(self, force_kube: bool = True) -> None:
         # Nie anulujemy odczytu wątku: następny tick/r czeka na jego zakończenie.
         if not self._refreshing:
+            if force_kube and self.kube:
+                self._kube_discovery.request_refresh()
             self._refreshing = True
             self.run_worker(self._refresh(), group="snapshot")
 
     async def _refresh(self) -> None:
         try:
-            snapshot = await asyncio.to_thread(collect_snapshot, kube=self.kube)
+            snapshot = await asyncio.to_thread(
+                collect_snapshot, kube=self.kube, kube_discovery=self._kube_discovery
+            )
             self.snapshot = snapshot
             self._last_update = datetime.now().strftime("%H:%M:%S")
             self._render_rows()
@@ -241,12 +250,25 @@ class PortScannerApp(App[None]):
         )
         mode = "proces" if self._sort_process else "port"
         empty = " | Brak pasujących wpisów." if not rows else ""
+        kube_message = (
+            next(
+                (
+                    safe_text(report.message or report.status)
+                    for report in self.snapshot.reports
+                    if report.source == "kubernetes"
+                ),
+                "",
+            )
+            if self.snapshot
+            else ""
+        )
         self.summary.update(
             Text(
                 f"Wpisy: {len(rows)} | Sort: {mode} | "
                 f"Odczyt: {self._last_update}{empty}\n"
                 f"IP lokalne: {ips or '—'}\n"
                 "UDP: związane gniazdo • docker: publikacja • tunel: reguła config"
+                + (f"\nKubernetes: {kube_message}" if kube_message else "")
             )
         )
 
@@ -312,3 +334,6 @@ class PortScannerApp(App[None]):
             self.exit()
         else:
             self.message.update("Poczekaj na zakończenie bieżącej operacji.")
+
+    def on_unmount(self) -> None:
+        self._kube_discovery.close()

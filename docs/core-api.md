@@ -37,6 +37,16 @@ Błędy operacyjne źródeł znajdują się w raportach i nie blokują pozostał
 Nieprawidłowy argument `timeout` zgłasza `ValueError`. Limit dotyczy pojedynczej
 operacji, nie całej migawki. Wywołania są synchroniczne; TUI wykonuje je przez workera poza wątkiem UI.
 
+Interfejsy cyklicznie odświeżające dane przekazują opcjonalne
+`kube_discovery=KubeDiscovery()` z `portscanner.core.kube_cache` do
+`collect_snapshot(kube=True, kube_discovery=...)`. Instancja należy do sesji
+interfejsu: odczytuje NodePort w tle, przechowuje wynik przez 30 s i zawsze
+rozpoznaje port-forward z bieżących lokalnych danych. Wiek cache znajduje się
+w wiadomości raportu Kubernetes. `request_refresh()` omija TTL, `reset()`
+unieważnia dane i wynik odczytu w toku, a `close()` kończy sesję i czeka na
+sprzątnięcie ograniczonego czasowo odczytu. Bez `kube=True` instancja nie jest
+wywoływana. Bez instancji odczyt Kubernetes pozostaje synchroniczny.
+
 Nieparsowalny adres IP pomija tylko pojedynczy rekord gniazda lub interfejsu;
 pozostałe dane nadal są przetwarzane. Błędy odczytu systemowego pozostają
 odpowiednio `ListenerScanError` / `LocalIPError` i trafiają do raportów źródeł.

@@ -2,38 +2,87 @@
 
 import os
 import queue
+import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from typing import BinaryIO
 
-import psutil
+from portscanner.core.windows_job import WindowsJob
 
 OUTPUT_LIMIT = 4 * 1024 * 1024
 
 
-def _stop_tree(process: subprocess.Popen[bytes]) -> None:
+def _stop_tree(process: subprocess.Popen[bytes], job: WindowsJob | None = None) -> None:
     if os.name == "posix":
         # Osobna sesja obejmuje również pluginy exec i ich potomków.
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+    elif job is not None:
+        job.close()
     else:
-        try:
-            parent = psutil.Process(process.pid)
-            children = parent.children(recursive=True)
-            for child in reversed(children):
-                try:
-                    child.kill()
-                except psutil.NoSuchProcess:
-                    pass
-            parent.kill()
-            psutil.wait_procs(children, timeout=1)
-        except psutil.NoSuchProcess:
-            pass
+        process.kill()
     process.wait()
+
+
+# Proces czeka, aż rodzic przypisze go do Job Object. Dopiero potem uruchamia
+# kubectl, którego stdin pozostaje zamknięte. Nie ma wyścigu ze startem pluginu.
+_WINDOWS_GATE = """import subprocess, sys
+if sys.stdin.buffer.read(1) != b'1':
+    sys.exit(1)
+try:
+    code = subprocess.call(sys.argv[1:], stdin=subprocess.DEVNULL)
+except OSError:
+    sys.exit(127)
+sys.exit(code)
+"""
+
+
+def _start(command: list[str]) -> tuple[subprocess.Popen[bytes], WindowsJob | None]:
+    if os.name != "nt":
+        return subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        ), None
+    executable = shutil.which(command[0])
+    if executable is None:
+        raise FileNotFoundError("Brak kubectl")
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-I",
+            "-u",
+            "-c",
+            _WINDOWS_GATE,
+            str(executable),
+            *command[1:],
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    job = None
+    try:
+        job = WindowsJob(process.pid)
+        assert process.stdin is not None
+        process.stdin.write(b"1")
+        process.stdin.close()
+        return process, job
+    except BaseException:
+        try:
+            _stop_tree(process, job)
+        finally:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+        raise
 
 
 def run_kubectl(resource: str, timeout: float) -> str:
@@ -47,13 +96,7 @@ def run_kubectl(resource: str, timeout: float) -> str:
         f"--request-timeout={timeout:.3f}s",
     ]
     deadline = time.monotonic() + timeout
-    process = subprocess.Popen(
-        command,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=os.name == "posix",
-    )
+    process, job = _start(command)
     chunks: queue.Queue[tuple[bool, bytes | None]] = queue.Queue(maxsize=16)
     stop = threading.Event()
 
@@ -106,7 +149,9 @@ def run_kubectl(resource: str, timeout: float) -> str:
         return output.decode("utf-8")
     finally:
         stop.set()
-        _stop_tree(process)
-        for reader in readers:
-            if reader.ident is not None:
-                reader.join(timeout=1)
+        try:
+            _stop_tree(process, job)
+        finally:
+            for reader in readers:
+                if reader.ident is not None:
+                    reader.join(timeout=1)

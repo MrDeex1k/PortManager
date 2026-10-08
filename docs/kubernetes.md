@@ -1,6 +1,6 @@
 # Kubernetes — opcjonalna warstwa 2
 
-Stan implementacji: 2026-10-03. `--kube` włącza odczyt konfiguracji klastra
+Stan implementacji: 2026-10-08. `--kube` włącza odczyt konfiguracji klastra
 przez zainstalowany `kubectl` oraz rozpoznawanie lokalnych sesji port-forward.
 Bez tej flagi aplikacja nie uruchamia kubectl ani nie czyta kubeconfig;
 heurystyczne tagi K8s z warstwy 1 nadal działają.
@@ -17,6 +17,21 @@ Flaga `--kube` nie łączy się z `--kill`. W GUI filtr Kubernetes pokazuje
 mapowania, a inspektor ich namespace, zasób, port docelowy oraz węzeł/kontekst.
 Eksport JSON wszystkich interfejsów zachowuje te same pola.
 
+GUI ma przełącznik „Włącz Kubernetes” w widoku Kubernetes, dostępny także
+po uruchomieniu `PortManager.app` z Findera. Bez `--kube` odczyt jest domyślnie
+wyłączony; ustawienie obowiązuje w bieżącej sesji aplikacji.
+
+GUI i TUI odczytują klaster w osobnym wątku co 30 s (licząc od zakończenia
+poprzedniej próby). Lokalne porty i cele port-forward nadal są aktualizowane
+przy każdym skanie co 2 s; wolny klaster nie opóźnia lokalnej migawki.
+Pierwszy skan pokazuje „Odczyt klastra w toku”. Wiek danych klastra jest
+widoczny w widoku Kubernetes GUI i podsumowaniu TUI. Błąd odświeżenia
+zachowuje ostatnie dane NodePort ze stanem `partial` i podanym wiekiem.
+Udany pusty odczyt usuwa stare mapowania. Zmiana lokalnych IP lub przełącznika
+unieważnia cache i wynik wcześniejszego żądania. Ręczne „Odśwież” / `r` omija
+cache; żądania klastra nie nakładają się. CLI i domyślne API core nadal
+wykonują jednorazowy odczyt synchroniczny.
+
 ## Odczyt klastra
 
 Kubectl wybiera bieżący kontekst ze standardowego kubeconfig (w tym
@@ -31,8 +46,12 @@ ustala kontekst raz dla obu rodzajów zasobów. Budżet polecenia wynosi 3 s,
 z `--request-timeout` i timeoutem procesu. Kubectl ma zamknięte stdin.
 Łączny limit stdout i stderr (4 MiB) jest egzekwowany podczas odbierania.
 Po timeout lub przekroczeniu limitu proces i jego potomkowie są kończone;
-na macOS/Linux używamy osobnej grupy procesów. Windows korzysta z psutil
-i pozostaje poza zweryfikowaną matrycą. Konto potrzebuje uprawnień listowania services we wszystkich
+na macOS/Linux używamy osobnej grupy procesów. Windows używa Job Object
+z `KILL_ON_JOB_CLOSE`. Proces pomocniczy czeka na przypisanie do joba przed
+uruchomieniem kubectl, więc potomkowie należą do joba także po zakończeniu
+rodzica. Nieudane przypisanie przerywa start kubectl. Natywne testy Windows
+są dostępne w `tests/test_windows_job.py`; Windows pozostaje poza matrycą
+zweryfikowaną na macOS. Konto potrzebuje uprawnień listowania services we wszystkich
 namespace oraz nodes. Te odczyty nie stanowią atomowej migawki klastra.
 
 Brak kubectl daje `unavailable`, a błąd konfiguracji, RBAC, timeout lub
@@ -93,6 +112,14 @@ mapowania. Dodanie pola oraz wartości `origin="kubernetes"` wymaga aktualizacji
 konsumentów JSON, którzy walidują zamkniętą listę pól lub wartości origin.
 
 ## Weryfikacja
+
+Weryfikacja usprawnień 2026-10-08 na macOS: **349 testów zaliczonych,
+4 pominięte** (systemowy odczyt gniazd i 3 natywne testy Windows).
+Ruff lint/format i Pyrefly bez błędów; frontend: 4 testy Bun, vue-tsc,
+formatowanie i build Vite zaliczone. Natywny smoke WebKit potwierdził
+przełącznik Kubernetes, filtr, inspektor, eksport i operacje na procesach.
+Testy cache obejmują nieblokujący odczyt, TTL, ręczne odświeżenie, zmianę IP,
+wyłączenie w trakcie żądania i zachowanie danych po błędzie klastra.
 
 Weryfikacja 2026-10-03 na macOS: pytest **325 zaliczonych, 1 pominięty**
 (uprawnienia systemowego odczytu gniazd), Ruff lint/format i Pyrefly bez błędów.

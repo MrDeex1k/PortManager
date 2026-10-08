@@ -9,6 +9,7 @@ from portscanner.core.docker import collect_docker
 from portscanner.core.ips import LocalIPError, collect_local_ips
 from portscanner.core.k8s import tag_entry
 from portscanner.core.kube import collect_kube
+from portscanner.core.kube_cache import KubeDiscovery
 from portscanner.core.listeners import ListenerScanError, collect_listeners
 from portscanner.core.model import (
     Collection,
@@ -125,6 +126,7 @@ def collect_snapshot(
     tunnels: bool = True,
     metrics: bool = True,
     kube: bool = False,
+    kube_discovery: KubeDiscovery | None = None,
     timeout: float = 3.0,
 ) -> Snapshot:
     """Odczytaj lokalne źródła; błędy znajdują się w reports, nie znikają.
@@ -174,7 +176,11 @@ def collect_snapshot(
     reports.extend((docker_result.report, tunnel_result.report))
     ports = merge_sources(entries, docker_result.items, tunnel_result.items, local_ips)
     if kube:
-        result = collect_kube(ports, local_ips, timeout=timeout)
+        result = (
+            collect_kube(ports, local_ips, timeout=timeout)
+            if kube_discovery is None
+            else kube_discovery.collect(ports, local_ips, timeout=timeout)
+        )
         ports = result.items
         reports.append(result.report)
     return Snapshot(
