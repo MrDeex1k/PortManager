@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.3",
   "scripts": {
     "dev": "bun --bun vite",
     "check": "node node_modules/vue-tsc/bin/vue-tsc.js --noEmit",
@@ -14,19 +14,19 @@
     "format:check": "bun --bun prettier --check src tests vite.config.ts tsconfig.json package.json index.html .prettierrc.json"
   },
   "dependencies": {
-    "@tanstack/vue-query": "5.104.1",
-    "@tanstack/vue-table": "9.2.4",
+    "@tanstack/vue-query": "5.104.3",
+    "@tanstack/vue-table": "9.3.1",
     "lucide-vue-next": "1.0.0",
-    "vue": "3.5.43"
+    "vue": "3.5.44"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
-    "@types/bun": "1.4.2",
-    "@vitejs/plugin-vue": "6.0.9",
-    "prettier": "3.9.9",
+    "@types/bun": "1.4.3",
+    "@vitejs/plugin-vue": "6.0.10",
+    "prettier": "3.9.10",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.2",
-    "vue-tsc": "3.3.12"
+    "vite": "8.3.4",
+    "vue-tsc": "3.3.13"
   }
 }

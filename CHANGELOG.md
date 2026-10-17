@@ -1,5 +1,17 @@
 # Historia zmian
 
+## W przygotowaniu — zależności (2026-10-17)
+
+- Aktualizacja zależności bezpośrednich i przechodnich Pythona oraz frontendu;
+  zachowana karencja nowych wydań 3 godziny i blokada prerelease w uv.
+- Typer 0.27.3, Pyrefly 1.4.0, Ruff 0.17.1; Vue 3.5.44,
+  TanStack Table 9.3.1 / Vue Query 5.104.3, Vite 8.3.4 i vue-tsc 3.3.13.
+- Deklarowany runner Bun 1.4.3. TypeScript 6.0.3 zachowany:
+  7.0.2 nadal nie udostępnia `typescript/lib/tsc` wymaganego przez vue-tsc.
+- Weryfikacja: 349 testów Python zaliczonych, 4 pominięte; Ruff, Pyrefly,
+  4 testy Bun, formatowanie, kontrola typów, build Vite, sdist/wheel
+  i natywny smoke GUI zaliczone.
+
 ## W przygotowaniu — usprawnienia Kubernetes (2026-10-08)
 
 - Odczyt klastra w tle co 30 s w GUI/TUI, niezależny od lokalnych skanów.
