@@ -1,7 +1,6 @@
 # API core — wspólny kontrakt CLI/TUI/GUI
 
-Ten kontrakt jest punktem wyjścia dla CLI (Faza 4) i TUI (Faza 5).
-Dokumentacja jest po polsku; nazwy symboli i wiadomości commitów po angielsku.
+Pakiet `portscanner.core` udostępnia wspólny model i odczyty dla trzech interfejsów.
 `core/` nie importuje UI. Import pakietu nie wykonuje odczytów ani żądań.
 
 ## Główne wejście
@@ -13,7 +12,7 @@ from portscanner.core import collect_snapshot
 snapshot = collect_snapshot(
     docker=True, tunnels=True, metrics=True, kube=False, timeout=3.0
 )
-data = asdict(snapshot)  # dane nadają się do json.dumps; tuple stają się tablicami
+data = asdict(snapshot)  # json.dumps(data) serializuje tuple jako tablice JSON
 ```
 
 `Snapshot` jest niemutowalną dataclass i zawiera:
@@ -29,8 +28,9 @@ data = asdict(snapshot)  # dane nadają się do json.dumps; tuple stają się ta
 `SourceReport(source, status, message)` używa stanów `ok`, `partial`,
 `unavailable`, `error`, `disabled`. `ok` z pustymi danymi oznacza udany odczyt
 bez wyników. `error` lub `unavailable` z pustymi danymi nie oznacza braku usług.
-Ograniczenia widoczności psutil opisane w MVP nadal obowiązują, także gdy OS
-pomija niedostępne gniazda bez błędu. Odczyty poszczególnych źródeł nie są atomowe.
+Na macOS systemowy odczyt psutil może wymagać root. Na Linuxie niedostępne
+gniazda mogą zostać pominięte bez błędu. Wynik nie gwarantuje pełnej widoczności
+systemu, a odczyty poszczególnych źródeł nie są atomowe.
 Interfejs musi pokazać raporty; nie może zamieniać błędu odczytu na „brak portów”.
 
 Błędy operacyjne źródeł znajdują się w raportach i nie blokują pozostałych danych.
@@ -56,8 +56,8 @@ ani jej automatycznego odświeżania — nadal służy do tego jawne `fetch_exit
 
 ## Wiersz portu
 
-Dotychczasowe pola `proto`, `bind`, `port`, `pid`, `process` pozostają.
-Dodane pola:
+`PortEntry` zawiera protokół `proto`, adres `bind`, numer `port`, opcjonalny
+`pid` i szczegóły `process: ProcessInfo | None` oraz powiązania:
 
 - `docker: tuple[DockerPort, ...]` — publikacje kontenerów dopasowane do wiersza.
 - `tunnels: tuple[TunnelRoute, ...]` — kandydaci z konfiguracji origin.
@@ -77,6 +77,15 @@ z przestrzeni kontenera do hosta. Reguły tunelu dopasowujemy tylko do TCP,
 zgodnego portu i lokalnego adresu; `localhost` oznacza loopback/wildcard.
 Nie rozwiązujemy nazw origin przez DNS. Reguły zachowują kolejność i `path`;
 przypisanie reguły do portu nie ocenia priorytetów routingu ani osiągalności hostname.
+
+## Szczegóły procesu
+
+`enrich_processes()` z `core/procs.py` uzupełnia wpisy o `ProcessInfo`:
+`pid`, `name`, `cmdline` (tuple argumentów lub `None`) i status odczytu.
+Status to `ok`, `unknown` (brak PID), `access_denied`, `gone` lub `error`.
+Brak szczegółów nie usuwa wpisu portu. Odmowa odczytu argumentów może zachować
+nazwę procesu. PID jest odczytywany raz na migawkę, bez cache między skanami.
+Informacyjna migawka procesu nie upoważnia do operacji bez ponownej weryfikacji.
 
 ## Prywatność argumentów procesów
 
@@ -147,7 +156,7 @@ odpowiedzi i Unix sockets, ponieważ nie mają portu TCP. YAML odczytujemy przez
 `safe_load` z limitem 1 MiB; błędna konfiguracja nie usuwa informacji o procesie.
 Na Linuxie nie przypisujemy localhost ani ścieżek konfiguracji connectorów
 z innej lub niedostępnej przestrzeni sieciowej/montowania do hosta — raportujemy
-niepełną widoczność. Pełna obsługa connectorów wewnątrz kontenerów jest poza MVP.
+niepełną widoczność. Connectory wewnątrz kontenerów nie mają gwarantowanej pełnej widoczności.
 
 Metryki pobieramy z maksymalnie ośmiu gniazd LISTEN przypisanych wykrytemu PID,
 wyłącznie na loopback (wildcard jest zamieniany na loopback tej samej rodziny).
@@ -164,30 +173,19 @@ brak metryk, a nie zero połączeń. Nie wykonujemy zapytań do publicznych host
 Źródła: [konfiguracja ingress](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/),
 [metryki cloudflared](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/metrics/).
 
-## Kubernetes — warstwa 1
+## Heurystyczne tagi Kubernetes
 
 `ServiceTag(name, evidence)` ma nazwę `k8s`, `k3s` lub `microk8s` oraz
 `evidence="process"` albo `"port"`. Rozpoznajemy dokładną nazwę pliku wykonywalnego,
 nie przypadkowe wystąpienie słowa w argumentach. Typowe porty są słabszą
 heurystyką, z uwzględnieniem TCP/UDP. Nawet tag oparty na procesie nie dowodzi
 przynależności do klastra (np. etcd może działać samodzielnie).
-Sama warstwa 1 nie uruchamia kubectl, nie odczytuje kubeconfig i nie kontaktuje się z klastrem.
+Samo tagowanie nie uruchamia kubectl, nie odczytuje kubeconfig i nie kontaktuje się z klastrem.
 
-Jawne `collect_snapshot(kube=True)` włącza warstwę 2 i raport `kubernetes`.
+Jawne `collect_snapshot(kube=True)` włącza odczyt klastra i raport `kubernetes`.
 Szczegóły modeli, lokalności, odczytu klastra i timeoutu: [Kubernetes](kubernetes.md).
 
-## Walidacja Fazy 3
-
-Na macOS/Python 3.13: testy jednostkowe Dockera, tuneli, tagów i scalania;
-rzeczywisty HTTP loopback sprawdza odczyt metryk i odrzucanie przekierowań.
-Lokalny odczyt Docker zakończył się sukcesem, ale bez opublikowanych mapowań;
-nie wykryto działających procesów tuneli. Mapowania, Compose i konfiguracje
-zweryfikowano na kontrolowanych danych. Nie uruchamiano kontenerów ani tuneli.
-Systemowy odczyt gniazd psutil pozostaje pominięty z powodu uprawnień macOS;
-pełna matryca Windows/Linux/macOS pozostaje w Fazie 6.
-
-
-## Rozszerzenia Fazy 4 — filtry i działania
+## Filtry i działania
 
 `core/filtering.py` udostępnia `filter_entries(entries, query) -> list[PortEntry]`.
 `None` zachowuje wszystkie wpisy, `:PORT`/`pid:PID` filtrują dokładnie, pozostały
@@ -200,3 +198,25 @@ Ta funkcja ponownie sprawdza tożsamość i reguły przed sygnałem oraz eskalac
 Błędy i odmowy zgłaszają `ProcessActionError`; nieprawidłowy timeout `ValueError`.
 Wywołania `collect_snapshot()` nigdy nie kończą procesów.
 Politykę i allowlistę opisuje [CLI](cli.md); TUI współdzieli te funkcje i zapewnia własny dialog zgody.
+
+## Gniazda i adresy IP
+
+`collect_listeners()` z `core/listeners.py` zwraca lokalne TCP LISTEN oraz
+związane gniazda UDP bez zdalnego adresu. Nie wysyła pakietów; wpis UDP nie
+potwierdza odpowiedzi serwera. Wysokie porty nie są odrzucane. Para wildcard
+IPv4/IPv6 tego samego znanego PID, protokołu i portu może być prezentowana
+jako `bind="*"`; `group_dual_stack=False` zachowuje osobne adresy.
+Błędy odczytu zgłaszają `ListenerScanError`, a odmowa dostępu
+`ListenerAccessDenied`, jego podklasę. Nieznany właściciel ma `pid=None`.
+
+`collect_local_ips()` z `core/ips.py` zwraca `list[LocalIP]`, w tym loopback,
+VPN i link-local. Zachowuje scope IPv6 z systemu. Nie wybiera adresu głównego,
+nie wykonuje żądań sieciowych; błędy zgłasza jako `LocalIPError`.
+
+`fetch_exit_ip(timeout=3.0)` jest osobnym, jawnym żądaniem HTTPS do
+`api64.ipify.org`. Zwraca `ExitIP` z etykietą „exit IP (widziane z internetu)”
+lub zgłasza `ExitIPError`. Wynik opisuje trasę użytego połączenia, także VPN
+lub proxy, i ujawnia usłudze jej adres wyjściowy. Nie potwierdza dostępności
+portów z internetu ani adresu routera. Funkcja nie ponawia żądań, ogranicza
+odpowiedź do 64 bajtów i waliduje publiczny adres IP. Timeout dotyczy operacji
+gniazda, nie całego wywołania ani twardego limitu DNS.

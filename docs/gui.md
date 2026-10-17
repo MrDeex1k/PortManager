@@ -1,10 +1,12 @@
 # GUI desktopowe
 
-**Stan 2026-09-12:** Faza 7 jest zakończona na macOS. GUI korzysta z tego
-samego `core/` co CLI i TUI. Tryb desktopowy pokazuje rzeczywiste dane;
-otwarcie samego Vite w przeglądarce używa jawnych danych demonstracyjnych.
+Desktopowy PortManager wyświetla rzeczywiste migawki systemu we frontendzie Vue
+uruchomionym przez pywebview. Zwykły podgląd Vite w przeglądarce używa jawnie
+oznaczonych danych demonstracyjnych.
 
 ## Uruchomienie
+
+Z katalogu głównego repozytorium:
 
 ```bash
 uv sync --locked --extra gui
@@ -15,18 +17,55 @@ cd ..
 uv run --locked --extra gui portscanner --gui
 ```
 
-`--gui --kube` włącza opcjonalny [odczyt Kubernetes](kubernetes.md).
-Można go również włączyć i wyłączyć przełącznikiem w widoku Kubernetes,
-także przy starcie z Findera. Bez flagi jest domyślnie wyłączony.
-Filtr Kubernetes i inspektor pokazują NodePort oraz lokalne sesje port-forward.
-`--gui` nie łączy się z pozostałymi flagami CLI. Bez flag uruchamia się TUI. Zależność
-pywebview jest opcjonalna, więc CLI i TUI nie wymagają środowiska graficznego,
-Bun ani Node.
+CLI i TUI nie wymagają dodatku GUI ani narzędzi frontendu. Wymagania środowiska,
+instalacja przez pipx i zakres zgodności: [instalacja i pakowanie](release.md).
+
+## Praca z portami
+
+- Wybierz wszystkie porty lub widok Docker, tuneli albo Kubernetes.
+- Filtruj tekstowo, przez dokładny port `:8080` lub PID `pid:8421`.
+  Filtr tekstowy w trybie desktopowym korzysta ze wspólnego core.
+- Wybierz TCP lub UDP i sortuj tabelę nagłówkami kolumn.
+- Kliknij port, aby zobaczyć bind, PID, dostępne argumenty procesu,
+  mapowania kontenerów, projekt i usługę Compose, tunele oraz kontekst Kubernetes.
+- Użyj „Odśwież”, aby zlecić odczyt, albo pozostaw automatyczne odświeżanie co 2 s.
+  Zaznaczenie jest zachowywane po kluczu `(proto, bind, port, pid, origin)`.
+
+Inspektor znajduje się obok tabeli, a przy węższym oknie przechodzi pod nią.
+Interfejs odróżnia pierwszy odczyt, brak wyników, brak dopasowań, dane częściowe
+i błąd. Raport odmowy uprawnień nie oznacza braku portów.
+
+## Kubernetes
+
+Dodaj `--kube` przy uruchomieniu lub użyj przełącznika „Włącz Kubernetes”
+w widoku Kubernetes. Ustawienie dotyczy bieżącej sesji i jest dostępne także
+po uruchomieniu skrótu z Findera. Domyślnie odczyt klastra jest wyłączony.
+
+Odczyt NodePort działa w tle co 30 s; lokalne dane port-forward są aktualizowane
+przy skanach systemu. Widok pokazuje wiek danych. Awaria klastra zachowuje
+poprzednie mapowania z raportem `partial`; ręczne odświeżenie omija cache.
+[Konfiguracja i interpretacja mapowań](kubernetes.md).
+
+## Eksport i operacje
+
+**„Eksportuj widok”** zapisuje widoczne wiersze w aktualnej kolejności jako
+JSON o tym samym kontrakcie `PortEntry[]` co CLI i TUI. Natywny dialog pozwala
+wybrać ścieżkę i potwierdzić zastąpienie pliku. Raporty źródeł i lokalne IP
+nie wchodzą do tej tablicy; przy błędzie źródła wynik może być częściowy.
+
+**Kończenie procesu** wymaga weryfikacji i potwierdzenia w dialogu. Cel jest
+przechowywany pod krótkotrwałym, jednorazowym tokenem. Zmiana zaznaczenia
+nie zmienia celu dialogu; przed sygnałem core ponownie sprawdza jego tożsamość
+i reguły. Force jest domyślnie wyłączone i wymaga osobnej zgody.
+[Allowlista i reguły operacji](cli.md#kończenie-procesu).
+
+Znane flagi uwierzytelniające są maskowane w argumentach i eksporcie;
+nie obejmuje to dowolnych sekretów w treści argumentów.
+[Zakres maskowania](core-api.md#prywatność-argumentów-procesów).
 
 ## Skrót PortManager.app
 
-Po instalacji wheel z dodatkiem GUI utwórz lekki bundle wskazujący polecenie
-z tego środowiska:
+Po instalacji wheel z dodatkiem GUI, gdy `portscanner` jest dostępny na PATH:
 
 ```bash
 portscanner-macos-app \
@@ -35,125 +74,34 @@ portscanner-macos-app \
 open "$HOME/Applications/PortManager.app"
 ```
 
-Generator odmawia zastąpienia istniejącej ścieżki. Bundle zawiera ikonę ICNS,
-`Info.plist` oraz mały launcher wykonujący dokładnie `portscanner --gui`.
-Nie kopiuje interpretera ani zależności, więc wskazane środowisko musi pozostać
-w tym samym miejscu. Bundle nie jest podpisany; samodzielna binarka,
-notaryzacja i podpisywanie należą do późniejszego etapu dystrybucji.
+Generator tworzy ikonę ICNS, `Info.plist` i launcher wykonujący `portscanner --gui`.
+Odmawia zastąpienia istniejącej ścieżki. Nie kopiuje interpretera ani zależności:
+wskazane środowisko musi pozostać w tej samej lokalizacji. Bundle jest niepodpisany
+i nie jest samodzielnym instalatorem aplikacji.
 
-Podczas pracy z Vite uruchom dwa terminale:
+## Podgląd i development
 
-```bash
-cd frontend && bun run dev
-PORTSCANNER_GUI_DEV_URL=http://127.0.0.1:5173 uv run --locked --extra gui portscanner --gui
-```
+Sam interfejs z danymi demo uruchomisz przez `bun run dev` w katalogu `frontend`.
+Odczyt systemu i operacje na procesach wymagają mostka desktopowego.
 
-Mostek akceptuje wyłącznie ten adres loopback i stały port. Zbudowana aplikacja
-ładuje lokalne zasoby pakietu i nie potrzebuje Vite. Nie odpytuje automatycznie
-usług exit IP i nie podnosi uprawnień.
-
-## Funkcje
-
-- Migawka z `collect_snapshot()`: TCP/UDP, procesy, lokalne IP, Docker/Compose,
-  tunele, tagi oraz raport każdego źródła.
-- Odświeżanie co 2 sekundy przez TanStack Query. Odczyty nie nakładają się,
-  starsza odpowiedź nie zastępuje nowszej, a zaznaczenie jest zachowywane po
-  stabilnym kluczu `(proto, bind, port, pid, origin)`.
-- Kubernetes jest odczytywany w tle co 30 s; widok pokazuje wiek danych.
-  Awaria klastra zachowuje poprzednie mapowania z raportem `partial`.
-  Przycisk „Odśwież” omija cache klastra.
-- Podgląd przeglądarkowy zawiera przykładowy NodePort i port-forward;
-  wyszukiwanie obejmuje namespace, zasób, port docelowy, węzeł i kontekst.
-- Wyszukiwanie tekstowe oraz dokładne `:PORT` i `pid:PID` przez wspólny filtr
-  Pythona. Filtry źródła i protokołu oraz sortowanie są stanem prezentacji.
-- Tabela i inspektor pokazują bind, PID, stan i argumenty procesu, mapowania
-  kontenerów, projekt/usługę Compose, trasy tuneli, tagi i ograniczenia danych.
-- Osobne stany pierwszego odczytu, pustej migawki, braku dopasowań, danych
-  częściowych i błędu. Odmowa uprawnień jest raportem, a nie pustą listą.
-- Natywny eksport widocznych wierszy w bieżącej kolejności. JSON ma ten sam
-  kontrakt `PortEntry[]` co CLI i TUI; systemowy dialog obsługuje wybór ścieżki
-  i potwierdzenie zastąpienia istniejącego pliku.
-- Kończenie procesu jest dwuetapowe. `prepare_kill()` weryfikuje warunki bez
-  wysyłania sygnału i zwraca `KillTarget`. Most przechowuje cel pod krótkotrwałym,
-  jednorazowym tokenem, a dialog pokazuje go i zbiera zgodę użytkownika.
-  `terminate_target()` ponownie sprawdza tożsamość, właściciela, allowlistę,
-  przestrzenie nazw i lokalne gniazdo; force wymaga osobnej zgody.
-
-Metody mostu są wywoływane asynchronicznie przez pywebview poza wątkiem WebKit.
-Blokady po stronie Pythona zapobiegają równoległym skanom i podwójnym operacjom.
-Zmiana zaznaczenia podczas dialogu nie zmienia zapamiętanego celu zgody.
-Komunikaty polityki, zniknięcie procesu i timeout wracają do interfejsu bez
-automatycznej eskalacji uprawnień.
-
-## Wygląd i narzędzia
-
-Paleta zaakceptowana dla prototypu pozostaje bez zmian: grafit i stonowany
-błękit z nutą lawendy (`#a9b8f5`). Układ opiera się na gęstej tabeli i bocznym
-inspektorze. Przy węższym oknie inspektor przechodzi pod tabelę.
-[Ikona i źródło projektu](brand/README.md).
-
-| Narzędzie | Wersja | Rola |
-|---|---:|---|
-| Bun | 1.4.3 | instalacja, Vite i testy |
-| Vue | 3.5.44 | interfejs |
-| TanStack Table / Vue Query | 9.3.1 / 5.104.3 | tabela, sortowanie i cykl odczytu |
-| Vite / plugin Vue | 8.3.4 / 6.0.10 | development i build |
-| Tailwind / plugin Vite | 4.3.3 / 4.3.3 | stylowanie bez konfiguracji PostCSS |
-| pywebview | 6.2.1 | natywne okno i dialog zapisu |
-| TypeScript / vue-tsc | 6.0.3 / 3.3.13 | kontrola typów |
-
-`bun run check` uruchamia vue-tsc przez Node z powodu zgodności Volar;
-Vite i testy działają pod Bun. Wersje są przypięte w `package.json`, `bun.lock`
-i `uv.lock`. Aktualizacja zależności: 2026-10-17.
-
-Karencja nowych wydań wynosi 3 godziny: `minimumReleaseAge = 10800`
-w `frontend/bunfig.toml` i `exclude-newer = "3 hours"` w `[tool.uv]`.
-TypeScript pozostaje przypięty do 6.0.3: próba wersji 7.0.2 z vue-tsc 3.3.13
-kończy się `ERR_PACKAGE_PATH_NOT_EXPORTED` dla `typescript/lib/tsc`.
-Przed przejściem na 7 należy zweryfikować zgodność nowego wydania vue-tsc.
-
-## Kontrole
+Do pracy z aktualizacją frontendu na żywo uruchom dwa terminale, oba z katalogu
+repozytorium. W pierwszym:
 
 ```bash
 cd frontend
-bun run format:check
-bun run check
-bun test
-bun run build
-
-cd ..
-uv run --locked --extra gui ruff check .
-uv run --locked --extra gui ruff format --check .
-uv run --locked --extra gui pyrefly check
-uv run --locked --extra gui pytest -q -rs
+bun run dev
 ```
 
-Testy mostu obejmują serializację i kolejność, wspólne filtry, wolny odczyt,
-błąd kolektora, eksport, redakcję sekretów, odmowę polityki i jednorazowość
-zgody.
+W drugim, po synchronizacji środowiska z dodatkiem GUI:
 
-## Zamknięcie Fazy 7.5
+```bash
+PORTSCANNER_GUI_DEV_URL=http://127.0.0.1:5173 uv run --locked --extra gui portscanner --gui
+```
 
-Weryfikację wykonano 2026-09-12 na macOS ARM64:
+Mostek akceptuje tylko ten adres loopback i port. Gotowa aplikacja ładuje lokalne
+zasoby z `portscanner/gui/assets/` i nie wymaga działającego Vite.
+Wersje zależności znajdują się w [package.json](../frontend/package.json),
+[pyproject.toml](../pyproject.toml) oraz lockfile'ach.
 
-| Kontrola | Wynik |
-|---|---|
-| Natywny WebKit | start, render Vue, mostek i poprawne zamknięcie |
-| Responsywność | licznik WebKit działał podczas wolnego skanu i operacji procesu |
-| Dane i interakcje | raport częściowy, filtr, sortowanie, odświeżenie, trwałość zaznaczenia i szczegóły |
-| Eksport | widoczny posortowany `PortEntry[]`, zapis i odczyt JSON |
-| Proces | domyślne force wyłączone, anulowanie bez skutku, potwierdzenie zakończyło własny proces z gniazdem |
-| Wheel poza repo | CLI, TUI i pełny smoke GUI zaliczone w odizolowanym venv |
-| Zawartość wheel | Vue JS/CSS/HTML, PNG i ICNS obecne |
-| Skrót macOS | `Info.plist` poprawny, ICNS rozpoznany, start przez LaunchServices i standardowy Quit |
-| Python | Ruff i format bez błędów; Pyrefly 0 błędów; pytest 289 zaliczonych, 1 pominięty |
-| Frontend | Prettier, vue-tsc, 3 testy Bun i produkcyjny build Vite zaliczone |
-
-Kontrolowany proces testowy jest własnym procesem Pythona z lokalnym gniazdem.
-Przechodzi tę samą politykę `prepare_kill`/`terminate_target` co rzeczywiste
-użycie; smoke nie omija allowlisty ani ponownej weryfikacji. Systemowy odczyt
-macOS nadal może wymagać dodatkowych uprawnień i jest jawnie raportowany.
-Windows/Linux, podpisywanie oraz samodzielne binarki nie były w zakresie Fazy 7.
-
-`bun run build` zapisuje zasoby w `portscanner/gui/assets/`. Najpierw zbuduj
-frontend, potem wheel przez `uv build`; `node_modules` nie trafia do pakietu.
+Dalsze informacje: [rozwój i testy](development.md) · [architektura](architecture.md) ·
+[identyfikacja wizualna](brand/README.md).

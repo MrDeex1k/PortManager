@@ -1,78 +1,41 @@
 # Conventional Commits
 
-Wszystkie commity **muszą** spełniać [Conventional Commits 1.0](https://www.conventionalcommits.org/).
-
-**Wiadomości commitów muszą być po angielsku** — zarówno temat, jak i opcjonalna
-treść oraz stopki. Dokumentacja projektu pozostaje po polsku.
+Commity używają formatu [Conventional Commits 1.0](https://www.conventionalcommits.org/).
+Temat, opcjonalna treść i stopki są po angielsku; dokumentacja projektu jest po polsku.
 
 ## Format
 
-```
-<type>[scope][!]: <opis>
+```text
+<type>[scope][!]: <description>
 ```
 
-- `type` — jeden z: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-- `scope` — opcjonalny, bez spacji/nawiasów. Dla tego repo:
-  `core`, `tui`, `cli`, `gui`, `docker`, `tunnel`, `k8s`, `mcp`, `docs`, `ci`, `repo`.
-- `!` — opcjonalnie przed dwukropkiem, oznacza breaking change.
-- `opis` — po spacji, małą literą, bez kropki na końcu, max ~100 znaków.
+- Typ: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Zakres jest opcjonalny, np. `core`, `cli`, `tui`, `gui`, `docker`, `tunnel`, `k8s`, `docs`, `repo`.
+- `!` przed dwukropkiem oznacza zmianę niezgodną wstecz; opisz ją także stopką `BREAKING CHANGE:`.
+- Opis zaczyna się małą literą, jest krótki i nie kończy się kropką.
 
-## Przykłady
+```text
+feat(tui): add table sorting by port
+fix(docker): handle IPv6 port mappings
+docs(gui): clarify desktop installation
+refactor(core)!: change snapshot schema
+```
+
+## Hooki lokalne
+
+Po zainstalowaniu Lefthook uruchom w repozytorium:
 
 ```bash
-feat(tui): add table sorting by port
-fix(docker): fix IPv6 port mapping parsing
-docs: document the decision to develop without Docker
-refactor(core)!: make PortEntry a frozen dataclass
-chore(repo): add conventional commits hook
+lefthook install
 ```
 
-Breaking change opisuj też w stopce (`BREAKING CHANGE: ...`), ale samo `!` wystarcza do zaliczenia hooka.
+Konfiguracja znajduje się w [lefthook.yml](../lefthook.yml):
 
-## Egzekwowanie
+- `commit-msg` uruchamia [walidator formatu](../scripts/check_commit_msg.py).
+- `pre-commit` sprawdza lint i formatowanie Pythona przez Ruff.
 
-> Stan na 2026-09-06 (zweryfikowane w docsach GitHuba): reguła
-> `Commit message pattern` istnieje tylko w dokumentacji
-> GitHub Enterprise Cloud — na darmowym planie (nawet przy publicznym
-> repo) nie ma ani jej, ani push rulesetu z takim wzorcem
-> (push rulesety na Free kryją tylko: ścieżki, rozszerzenia i rozmiary plików).
-> Dlatego zdalne egzekwowanie formatu bez Actions jest u nas niewykonalne.
+Walidator sprawdza format, nie język. Rozpoznaje też automatyczne wiadomości
+merge i revert. Hooki są lokalne i mogą zostać pominięte przez `--no-verify`;
+nie stanowią zdalnego wymuszenia reguł repozytorium.
 
-1. **Lokalnie — lefthook** (model zaufania).
-   Hook `commit-msg` z `lefthook.yml` wywołuje `scripts/check_commit_msg.py`
-   (czysty stdlib, ten sam regex co wcześniej, działa na Win/Mac/Linux).
-   Hook sprawdza format, nie język — wymóg angielskiego obowiązuje autora commita.
-
-   Po klonie repo wykonaj raz:
-
-   ```bash
-   # najpierw sam lefthook (jedno z):
-   brew install lefthook                # macOS
-   winget install evilmartians.lefthook  # Windows
-   uv tool install lefthook              # dowolny OS
-
-   # potem podpięcie hooków w tym repo:
-   lefthook install
-   ```
-
-   Zły format = commit odrzucony z podpowiedzią. Ograniczenie:
-   `git commit --no-verify` omija hooka — nie ma zdalnej siatki bez
-   Actions ani płatnego planu, więc format trzymamy dyscypliną + review PR.
-   Nie ustawiaj ręcznie `git config core.hooksPath` — lefthook zarządza
-   `.git/hooks` sam. Stary `.githooks/` i workflow `commits.yml` zostały usunięte.
-
-2. **Zdalnie — branch ruleset (ochrona historii, nie formatu).**
-   `Settings → Rules → New ruleset → New branch ruleset`, target `main`:
-   `Restrict deletions` + `Block force pushes`. To nie sprawdza treści
-   commitów, ale chroni wyczyszczoną historię. Opcje `Require a pull request`
-   / `Require status checks` / `Require signed commits` zostawiamy wyłączone
-   (solowy dev, brak CI, brak podpisywania).
-
-Commity generowane przez gita (`Merge branch ...`, `Revert "..."`) są przepuszczane.
-
-## Nazwy gałęzi
-
-Zgodnie z decyzją użytkownika z 2026-09-08 używamy nazw opisujących rodzaj
-pracy, np. `feat/desktop-gui-phase-7` i `fix/gui-refresh-selection`.
-Nową gałąź dla dalszej pracy tworzymy z uzgodnionej gałęzi bazowej;
-nie stosujemy domyślnego prefiksu `codex/`.
+Pełny zestaw kontroli: [rozwój i testy](development.md).

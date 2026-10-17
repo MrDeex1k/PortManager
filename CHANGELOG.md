@@ -1,87 +1,51 @@
 # Historia zmian
 
-## W przygotowaniu — zależności (2026-10-17)
+Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
+lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
-- Aktualizacja zależności bezpośrednich i przechodnich Pythona oraz frontendu;
-  zachowana karencja nowych wydań 3 godziny i blokada prerelease w uv.
-- Typer 0.27.3, Pyrefly 1.4.0, Ruff 0.17.1; Vue 3.5.44,
-  TanStack Table 9.3.1 / Vue Query 5.104.3, Vite 8.3.4 i vue-tsc 3.3.13.
-- Deklarowany runner Bun 1.4.3. TypeScript 6.0.3 zachowany:
-  7.0.2 nadal nie udostępnia `typescript/lib/tsc` wymaganego przez vue-tsc.
-- Weryfikacja: 349 testów Python zaliczonych, 4 pominięte; Ruff, Pyrefly,
-  4 testy Bun, formatowanie, kontrola typów, build Vite, sdist/wheel
-  i natywny smoke GUI zaliczone.
+## Zależności — 2026-10-17
 
-## W przygotowaniu — usprawnienia Kubernetes (2026-10-08)
+- Aktualizacja bezpośrednich i przechodnich zależności Pythona oraz frontendu.
+- Typer 0.27.3, Pyrefly 1.4.0 i Ruff 0.17.1.
+- Vue 3.5.44, TanStack Table 9.3.1, Vue Query 5.104.3, Vite 8.3.4 i vue-tsc 3.3.13.
+- Runner Bun 1.4.3; TypeScript 6.0.3 zgodny z używaną wersją vue-tsc.
 
-- Odczyt klastra w tle co 30 s w GUI/TUI, niezależny od lokalnych skanów.
-- Wiek danych i zachowanie poprzednich mapowań po błędzie odświeżenia;
-  ręczne odświeżenie omija cache, zmiana lokalnych IP unieważnia dane.
-- Przełącznik Kubernetes w GUI, dostępny także z aplikacji uruchomionej w Finderze.
-- Parser korzysta z już zdekodowanych obiektów bez ponownego kodowania JSON.
-- Job Object na Windows sprząta pluginy także po zakończeniu kubectl.
-- Przykłady NodePort/port-forward i wyszukiwanie pól Kubernetes w podglądzie.
+## Odświeżanie Kubernetes — 2026-10-08
 
-## W przygotowaniu — zależności (2026-10-03)
+- Odczyt klastra w tle co 30 s w GUI i TUI, niezależnie od lokalnych skanów.
+- Wiek danych oraz zachowanie poprzednich mapowań po błędzie odświeżenia.
+- Ręczne odświeżanie omijające cache i unieważnianie danych po zmianie lokalnych IP.
+- Przełącznik Kubernetes w GUI, także po uruchomieniu aplikacji z Findera.
+- Wyszukiwanie pól Kubernetes i przykłady NodePort oraz port-forward w podglądzie.
+- Sprzątanie potomnych procesów pluginów kubectl przez Job Object na Windows.
 
-- Aktualizacja bezpośrednich i przechodnich zależności npm oraz Pythona.
-- Karencja nowych wydań 3 godziny dla Bun i uv.
-- TypeScript 6.0.3 zachowany z powodu niezgodności 7.0.2 z vue-tsc 3.3.12.
+## Integracja Kubernetes — 2026-10-03
 
+- Opcjonalne `--kube` we wszystkich interfejsach, z odczytem usług i węzłów przez kubectl.
+- NodePort dla węzłów o lokalnym IP oraz rozpoznawanie lokalnych sesji port-forward.
+- Pole `kubernetes` w JSON i `origin="kubernetes"` dla konfiguracji bez PID hosta.
+- Wspólny filtr, prezentacja CLI/TUI i inspektor Kubernetes w GUI.
+- Pojedynczy odczyt services/nodes, limit wyjścia i sprzątanie procesów potomnych.
+- Karencja publikacji nowych zależności wynosząca 3 godziny dla Bun i uv.
 
-## W przygotowaniu — Kubernetes, warstwa 2 (2026-10-03)
+## Interfejs desktopowy — 2026-09-12
 
-- Poprawki przeglądu: wspólny kontekst w pojedynczym poleceniu, limit
-  stdout/stderr podczas odczytu i sprzątanie procesów potomnych.
-  Po poprawkach: 331 testów zaliczonych, 1 pominięty; odczyt OrbStack poprawny.
-- Opcjonalne `--kube` we wszystkich interfejsach; odczyt usług i węzłów przez kubectl.
-- Konfiguracja NodePort dla węzłów o lokalnym IP i rozpoznawanie lokalnych port-forward.
-- Pole `kubernetes` w JSON i nowe `origin="kubernetes"` bez przypisywania PID.
-- Filtr i szczegóły Kubernetes w GUI oraz wspólna prezentacja CLI/TUI.
-- Weryfikacja: 325 testów Python zaliczonych, 1 pominięty, 3 testy Bun,
-  kontrole statyczne, build i natywny smoke GUI zaliczone.
-  Próba na OrbStack zaliczona: port-forward, mapowania NodePort na żywych
-  danych, odmowa RBAC i nieosiągalne API. Pełny skan gniazd na macOS
-  nadal wymaga dodatkowych uprawnień; szczegóły w dokumentacji Kubernetes.
+- Opcjonalny tryb `--gui` oparty na pywebview i Vue, z zasobami frontendu w wheel.
+- Migawki portów, procesów, lokalnych IP, Docker/Compose, tuneli i tagów.
+- Odświeżanie co 2 s, wspólne filtry, sortowanie oraz inspektor portu.
+- Natywny eksport widocznych danych do JSON.
+- Potwierdzane kończenie dozwolonych procesów z jednorazowym tokenem zgody
+  i ponowną weryfikacją celu.
+- Frontend oparty na Bun, Vite, Tailwind CSS i TanStack Query/Table.
+- Własna ikona PNG/ICNS i generator skrótu `PortManager.app`.
 
+## Podstawowa wersja 0.1.0 — 2026-09-08
 
-## W przygotowaniu — Faza 7 zakończona na macOS (2026-09-12)
-
-- Opcjonalne `--gui`: okno pywebview i Vue, lokalne zasoby w wheel.
-- Rzeczywiste migawki core w GUI: porty, procesy, lokalne IP, Docker/Compose,
-  tunele, tagi, raporty źródeł i odświeżanie co 2 sekundy.
-- Wspólne filtry core, sortowanie TanStack Table oraz pełny inspektor danych.
-- Natywny eksport widocznego widoku w kontrakcie JSON CLI/TUI.
-- Potwierdzane kończenie dozwolonych procesów z jednorazową zgodą,
-  ponowną weryfikacją celu i jawnym force.
-- Bun + Vite + Tailwind 4 przez plugin Vite; kontrola Vue przez Node/vue-tsc.
-- Grafitowa paleta z błękitnolawendowym akcentem i własna ikona PNG/ICNS.
-- Generator lekkiego `PortManager.app` z ikoną, dostępny po instalacji wheel
-  jako `portscanner-macos-app`.
-- Zweryfikowano 289 zaliczonych testów Python (dodatkowo 1 pominięty),
-  3 testy Bun, kontrole typów i formatowania oraz pełny natywny przepływ GUI
-  z wheel poza repozytorium. Nie opublikowano wydania.
-
-## 0.1.0 — MVP przygotowane lokalnie (2026-09-08)
-
-- Wspólny core odczytuje lokalne TCP LISTEN, związane UDP, dane procesów
-  i adresy interfejsów. Opcjonalnie rozpoznaje publikacje Docker/Compose,
-  konfiguracje i metryki cloudflared oraz heurystyczne tagi K8s.
-- Domyślny TUI ma filtr, sortowanie, odświeżanie w tle, raporty źródeł
-  i eksport widocznej migawki do JSON bez nadpisywania plików.
-- Jednorazowe CLI obsługuje tabelę, JSON, filtry, wyłączanie źródeł
-  oraz jawny odczyt exit IP. Raporty trafiają na stderr.
-- Kończenie własnego procesu wymaga allowlisty, weryfikacji tożsamości
-  i zgody w CLI/TUI. Force pozwala na eskalację dopiero po timeout.
-- Znane argumenty uwierzytelniające są maskowane w migawkach, JSON
-  i potwierdzeniach, bez osłabiania ponownej weryfikacji celu operacji.
-- Nieparsowalne adresy nie przerywają pozostałych odczytów, a próby metryk
-  jednego procesu dzielą wspólny budżet czasu.
-- Pakowanie: sdist i wheel, instalacja przez pipx. Skrypt weryfikuje
-  zbudowany wheel poza repozytorium i bez zmiany instalacji użytkownika.
-
-Zweryfikowano macOS ARM64 z Pythonem 3.12, 3.13 i 3.14. Windows i Linux
-czekają na środowiska testowe zgodnie z decyzją użytkownika. Ograniczenia
-oraz dowody weryfikacji: [wydanie i matryca](docs/release.md).
-
-To lokalne przygotowanie wydania; tag ani GitHub Release nie zostały opublikowane.
+- Wspólny core odczytujący TCP LISTEN, związane UDP, procesy i adresy interfejsów.
+- Publikacje Docker/Compose, lokalne konfiguracje i metryki cloudflared oraz tagi K8s.
+- Domyślny TUI z filtrem, sortowaniem, odświeżaniem w tle i eksportem JSON.
+- Jednorazowe CLI z tabelą, JSON, filtrami, wyborem źródeł i jawnym odczytem exit IP.
+- Kończenie własnych procesów z allowlistą, potwierdzeniem i kontrolowaną eskalacją.
+- Maskowanie znanych flag uwierzytelniających w migawkach, JSON i dialogach.
+- Niezależne raporty źródeł i obsługa częściowych danych.
+- Dystrybucja sdist/wheel oraz weryfikacja instalacji przez pipx poza repozytorium.

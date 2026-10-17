@@ -1,18 +1,18 @@
-# CLI — Faza 4
+# CLI — polecenia i automatyzacja
 
 ## Uruchamianie
 
 ```bash
-uv run portscanner --cli
-uv run portscanner --cli --json
-uv run portscanner --cli --filter :8080
-uv run portscanner --cli --filter pid:4123
-uv run portscanner --cli --filter postgres
-uv run portscanner --cli --no-docker --no-tunnels --no-color
+uv run --locked portscanner --cli
+uv run --locked portscanner --cli --json
+uv run --locked portscanner --cli --filter :8080
+uv run --locked portscanner --cli --filter pid:4123
+uv run --locked portscanner --cli --filter postgres
+uv run --locked portscanner --cli --no-docker --no-tunnels --no-color
 ```
 
 `portscanner --help` nie wykonuje odczytów systemowych. Brak `--cli` wybiera
-interaktywny [TUI](tui.md), dostępny od Fazy 5.
+interaktywny [TUI](tui.md).
 Opcje odczytu/kończenia wymagają `--cli`, poza `--kube`, które działa też w TUI/GUI. CLI jest jednorazowe, bez `--watch`.
 
 Tabela pokazuje protokół, bind, port, PID, proces, mapowania Dockera, reguły
@@ -82,8 +82,8 @@ Ograniczenia widoczności systemu pozostają opisane w API core.
 ## Kończenie procesu
 
 ```bash
-uv run portscanner --cli --kill 4123
-uv run portscanner --cli --kill 4123 --force --timeout 3
+uv run --locked portscanner --cli --kill 4123
+uv run --locked portscanner --cli --kill 4123 --force --timeout 3
 ```
 
 CLI odczytuje i pokazuje nazwę oraz argumenty, następnie pyta o potwierdzenie
@@ -96,7 +96,7 @@ jak i w argumentach pokazywanych przed zgodą. Pełne argumenty służą jedynie
 do wewnętrznego porównania tożsamości celu. Zakres i ograniczenia maskowania:
 [API core](core-api.md#prywatność-argumentów-procesów).
 
-Wspólny moduł `core/actions.py` wprowadza następującą politykę MVP:
+Wspólny moduł `core/actions.py` wprowadza następujące reguły:
 
 1. Tylko własny proces użytkownika, z widocznym gniazdem TCP LISTEN lub związanym
    UDP bez peera. Na POSIX zgodne muszą być realny i efektywny UID; na Windows
@@ -122,15 +122,8 @@ Wspólny moduł `core/actions.py` wprowadza następującą politykę MVP:
 
 Na Windows `terminate()` również kończy proces twardo. Operacje nie są
 transakcją; zakończonego procesu nie przywracamy. Błąd weryfikacji/uprawnień
-powoduje odmowę działania, bez automatycznego sudo/UAC. TUI od Fazy 5 wykorzystuje
+powoduje odmowę działania, bez automatycznego sudo/UAC. TUI wykorzystuje
 te same funkcje `prepare_kill` i `terminate_target` oraz własny dialog zgody.
 
-## Weryfikacja Fazy 4
 
-macOS/Python 3.13: 214 testów zaliczonych, 1 pominięty z powodu systemowych
-uprawnień psutil; Ruff lint + format bez błędów, Pyrefly 0 błędów.
-Testy obejmują JSON golden, stdout/stderr, filtry, błędne argumenty, politykę
-kill, zmianę PID/danych, odmowę zgody i eskalację. Rzeczywiście zakończono tylko
-tymczasowy serwer loopback utworzony przez test. Zainstalowany entry point CLI
-sprawdzono także na realnej odmowie odczytu macOS: poprawny JSON, stderr i kod 1.
-Żadne testy CLI nie odpytują publicznego ipify. Matryca OS pozostaje w Fazie 6.
+Platformy i instalacja: [instalacja i pakowanie](release.md).

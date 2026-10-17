@@ -1,142 +1,128 @@
-# Wydanie MVP 0.1.0
+# Instalacja i pakowanie
 
-Stan: 2026-09-08; kontrole wykonane 2026-09-07/08. Faza 6 zakończona w uzgodnionym zakresie **macOS**.
-Użytkownik odroczył Windows i Linux do czasu udostępnienia środowisk.
-Nie oznaczamy tych systemów jako sprawdzonych. Self-hosted CI nadal czeka
-na przygotowanie maszyn; nie dodano workflow wymagającego nieistniejących runnerów.
+PortManager można uruchomić ze źródeł lub zainstalować z lokalnego wheel.
+CLI i TUI działają w środowisku Pythona; desktop wymaga dodatku `gui`
+oraz zbudowanych zasobów frontendu. Repozytorium nie dostarcza samodzielnego,
+podpisanego instalatora ani opublikowanego pakietu PyPI.
 
-Wydanie jest przygotowane lokalnie: sdist, wheel, instrukcja pipx,
-skrypt weryfikacji i [historia zmian](../CHANGELOG.md). Nie opublikowano
-taga, GitHub Release ani pakietu na PyPI. Do instalacji używamy lokalnego
-artefaktu; zdalna gałąź może jeszcze nie zawierać lokalnych commitów.
+## Wymagania
 
-## Matryca wykonana na macOS
+- Python **3.12+** i [uv](https://docs.astral.sh/uv/).
+- Do budowania GUI: Bun zgodny z `packageManager` w
+  [frontend/package.json](../frontend/package.json) oraz Node do uruchamiania vue-tsc.
+- Do odpowiednich integracji: lokalny Docker, cloudflared lub kubectl.
+  Niedostępność integracji jest raportowana i nie usuwa danych pozostałych źródeł.
 
-Host: macOS 26.6.2, ARM64. Zależności testów z `uv.lock`.
-
-| Kontrola | Python 3.12.14 | Python 3.13.9 | Python 3.14.0 |
-|---|---|---|---|
-| Pełny pytest | 231 OK, 1 pominięty | 231 OK, 1 pominięty | 231 OK, 1 pominięty |
-| Pyrefly | 0 błędów | 0 błędów | 0 błędów |
-| Instalacja wheel przez pipx i `pip check` | OK | OK | Nie wykonywano |
-| CLI + TUI headless z venv pipx | OK | OK | Nie wykonywano |
-| Domyślny TUI z pipx w terminalu PTY | Nie wykonywano | OK | Nie wykonywano |
-
-Ruff lint i format: bez błędów. Zbudowano sdist, a następnie wheel z tego
-sdist. Testy obejmują rzeczywiste gniazda własnego procesu, odczyt lokalnych IP,
-HTTP loopback metryk oraz zakończenie wyłącznie tymczasowego procesu testowego.
-TUI Pilot sprawdza filtr, sort, timer, eksport, zgodę/anulowanie, force
-i zachowanie celu podczas odświeżania. Dane Docker/tuneli są sprawdzane
-głównie przez kontrolowane scenariusze, nie stanowią pełnej matrycy wdrożeń usług.
-
-Pominięty test to systemowy `psutil.net_connections()` wymagający na macOS
-dodatkowych uprawnień. CLI bez nich zwraca poprawny JSON, kod 1 i raport
-`listeners: error`; TUI pozostaje czynny i pokazuje ograniczenia źródeł.
-Odczyt własnych gniazd w teście nie dowodzi pełnej widoczności procesów systemowych.
-Nie podnosimy uprawnień automatycznie. W fazie 6 nie odpytano ipify.
-
-## Odtworzenie kontroli
-
-Po poprawkach przeglądu PR #1 wykonano na macOS / Python 3.13.9 ponowny
-pełny przebieg: 253 testy zaliczone, 1 pominięty (ten sam wymóg uprawnień OS).
-Ruff i Pyrefly bez błędów. Nowe regresje obejmują wspólny budżet prób metryk,
-pomijanie błędnych adresów, maskowanie argumentów i zachowanie pełnej weryfikacji
-celu operacji oraz wspólną kontrolę przestrzeni nazw.
-
-W katalogu repozytorium, po zainstalowaniu uv:
+## Uruchomienie ze źródeł
 
 ```bash
+git clone https://github.com/MrDeex1k/PortManager.git
+cd PortManager
 uv sync --locked
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked pyrefly check
-uv run --locked pytest -q -rs
+uv run --locked portscanner
+```
+
+Bez flag uruchamia się TUI; `--cli` wybiera jednorazowy odczyt.
+Pełne polecenia: [CLI](cli.md) · [TUI](tui.md).
+
+Do desktopu doinstaluj dodatek i zbuduj frontend:
+
+```bash
+uv sync --locked --extra gui
+cd frontend
+bun install --frozen-lockfile
+bun run build
+cd ..
+uv run --locked --extra gui portscanner --gui
+```
+
+## Budowanie pakietu
+
+Komenda `uv build` tworzy sdist i wheel w `dist/`. Dla CLI/TUI wystarczy środowisko
+Pythona. Pełny pakiet z GUI wymaga wcześniejszego builda Vite:
+
+```bash
+uv sync --locked --extra gui
+cd frontend
+bun install --frozen-lockfile
+bun run build
+cd ..
 uv build
-uv run --locked python scripts/verify_release.py dist/portscanner-0.1.0-py3-none-any.whl
 ```
 
-Ostatnia komenda pobiera pipx 1.17.2 i zależności runtime przez pip, instaluje
-wheel w tymczasowym katalogu, sprawdza `pip check`, CLI i TUI headless.
-Import uruchamia się z `-I` poza repozytorium i musi pochodzić z venv pipx.
-Skrypt drukuje wersję Pythona, pakietu oraz SHA256 wheel i usuwa instalację
-testową. Nie zmienia globalnej instalacji ani konfiguracji PATH. Cache uv/pip
-może zostać wykorzystany; dostęp do indeksu pakietów jest wymagany przy braku cache.
+Build Vite zapisuje HTML, JavaScript, CSS i ikony w `portscanner/gui/assets/`.
+Ten katalog jest ignorowany przez Git i dołączany do dystrybucji przez Hatchling.
+Samo `uv build` na świeżym klonie nie generuje zasobów GUI. `node_modules`
+nie jest częścią dystrybucji. Po zmianie frontendu zbuduj go ponownie przed wheel.
 
-Pipx instaluje zależności z metadanych wheel. Nie czyta `uv.lock`; dlatego
-kontrola instalacji jest osobna od testów środowiska deweloperskiego.
-Źródła: [instalacja pipx](https://pipx.pypa.io/stable/reference/cli.html),
-[izolowane ścieżki pipx](https://pipx.pypa.io/stable/how-to/configure-paths.html).
+## Instalacja przez pipx
 
-Rzeczywisty terminal (po starcie sprawdź `/`, `s`, `r`, potem `q`):
+Poniższe komendy zakładają wheel wersji `0.1.0`, odpowiadającej metadanym
+w `pyproject.toml`. Uruchom je z katalogu repozytorium po zbudowaniu pakietu.
+Opcja `--python` wybiera interpreter środowiska projektu odnaleziony przez uv.
 
-```bash
-uv run --locked python scripts/verify_release.py dist/portscanner-0.1.0-py3-none-any.whl --interactive
-```
-
-Opcja wymaga terminala i po smoke uruchamia zainstalowaną komendę bez flag.
-`q` kończy TUI, po czym instalacja testowa zostaje usunięta. Limit czasu
-pojedynczego podprocesu skryptu wynosi 5 minut.
-
-Do sprawdzenia innego interpretera dodaj `--python /pełna/ścieżka/do/python`.
-Pełne testy innej wersji można uruchomić w osobnym środowisku, zachowując `.venv`:
+CLI i TUI:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/tmp/portscanner-python312 uv sync --locked --python 3.12
-/tmp/portscanner-python312/bin/python -m pytest -q -rs
-```
-
-Przed kontrolą finalnego artefaktu zakończ zmiany w kodzie i dokumentacji,
-ponownie wykonaj `uv build` i weryfikację wheel. Zmiana plików po zbudowaniu
-oznacza, że wcześniejszy artefakt nie jest już wydaniem bieżącego drzewa.
-
-## Instalacja do codziennego użycia na macOS
-
-Zbuduj wheel jak wyżej. Poniższe komendy instalują aplikację trwale przez pipx:
-
-```bash
-uv tool run --from pipx==1.17.2 pipx install --backend pip --python "$(uv python find 3.13)" ./dist/portscanner-0.1.0-py3-none-any.whl
+uv tool run --from pipx==1.17.2 pipx install \
+  --backend pip --python "$(uv python find)" \
+  ./dist/portscanner-0.1.0-py3-none-any.whl
 uv tool run --from pipx==1.17.2 pipx ensurepath
 ```
 
-Otwórz nowy terminal, aby wczytać PATH, a następnie:
+Dla pełnego desktopu, po buildzie frontendu, zamiast pierwszego polecenia użyj:
 
 ```bash
-portscanner
-portscanner --cli --json --no-docker --no-tunnels
+uv tool run --from pipx==1.17.2 pipx install \
+  --backend pip --python "$(uv python find)" \
+  './dist/portscanner-0.1.0-py3-none-any.whl[gui]'
 ```
 
-Jeżeli PortScanner jest już zainstalowany, przed aktualizacją zachowaj wheel
-poprzedniej wersji i użyj `pipx install --force` z konkretnym nowym artefaktem.
-Powrót do poprzedniej wersji polega na analogicznej instalacji jej wheel.
-Odinstalowanie: `uv tool run --from pipx==1.17.2 pipx uninstall portscanner`.
-Instrukcje obsługi: [CLI](cli.md), [TUI](tui.md).
+Otwórz nowy terminal po `ensurepath`, a następnie uruchom `portscanner`,
+`portscanner --cli` lub, po instalacji dodatku, `portscanner --gui`.
+[Tworzenie skrótu macOS](gui.md#skrót-portmanagerapp).
 
-## Oczekujące środowiska
+Pipx tworzy osobne środowisko i instaluje zależności z metadanych wheel.
+Nie czyta `uv.lock`; instalacja artefaktu jest odrębnym sprawdzeniem od testów repo.
+Jeżeli masz już instalację, użyj `pipx install --force` z wybranym wheel,
+zachowując `[gui]`, gdy potrzebujesz desktopu. Zachowanie poprzedniego wheel
+pozwala zainstalować ponownie wcześniejszą wersję.
 
-| Środowisko | Status |
+Odinstalowanie:
+
+```bash
+uv tool run --from pipx==1.17.2 pipx uninstall portscanner
+```
+
+## Weryfikacja artefaktu
+
+```bash
+uv run --locked python scripts/verify_release.py dist/portscanner-0.1.0-py3-none-any.whl
+```
+
+Skrypt instaluje wheel przez pipx w tymczasowym katalogu, sprawdza `pip check`
+oraz CLI i TUI headless poza repozytorium. Drukuje nazwę pakietu i SHA256,
+po czym usuwa środowisko testowe. Pobiera pipx i zależności, jeżeli nie ma ich
+w cache. Nie weryfikuje natywnego GUI ani instalacji dodatku `gui`.
+
+Dodaj `--interactive`, aby sprawdzić zainstalowane TUI w terminalu; `q` kończy
+aplikację. Opcja `--python /pełna/ścieżka/do/python` wybiera interpreter.
+Kontrole kodu i natywny smoke desktopu: [rozwój i testy](development.md#zakres-testów).
+
+## Platformy i uprawnienia
+
+| Środowisko | Zakres potwierdzonej weryfikacji |
 |---|---|
-| macOS ARM64 | Wykonano kontrole powyżej |
-| macOS Intel | Nie weryfikowano na tym hoście |
-| Linux x86_64 / ARM64 | Odroczone do udostępnienia środowiska |
-| Windows | Odroczone do udostępnienia środowiska |
+| macOS ARM64 | CLI, TUI, natywne GUI, instalacja wheel i skrót `.app` |
+| macOS Intel | Brak potwierdzonej weryfikacji |
+| Linux x86_64 / ARM64 | Brak potwierdzonej weryfikacji całej aplikacji |
+| Windows | Brak potwierdzonej weryfikacji całej aplikacji |
 
-Po uzyskaniu Windows/Linux powtórz lint, format, Pyrefly, pytest, budowanie
-i instalację pipx oraz obsługę TUI w natywnym terminalu. Zapisz wersje OS/Pythona,
-wyniki i przyczynę każdego pominięcia. Sprawdź odczyty bez uprawnień administratora,
-Docker dostępny/niedostępny i konfigurację cloudflared. Operacje kończenia
-sprawdzaj wyłącznie na utworzonym procesie testowym. Dopiero rzeczywiste wyniki
-pozwalają oznaczyć odpowiedni wiersz jako zweryfikowany.
+Na macOS systemowy odczyt gniazd przez psutil może wymagać root. Aplikacja
+nie podnosi uprawnień automatycznie. CLI przy błędzie listeners zwraca kod `1`,
+nawet gdy JSON zawiera częściowe dane; TUI i GUI pokazują raport źródła.
+Odczyt gniazd własnego procesu w teście nie dowodzi widoczności całego systemu.
+Na Linuxie niedostępne połączenia mogą zostać pominięte bez błędu.
 
-## Aktualizacja zależności — karencja 3 godziny
-
-Od 2026-10-03 uv i Bun pomijają nowe wersje opublikowane w ostatnich 3 godzinach.
-Konfiguracja: `[tool.uv].exclude-newer = "3 hours"` w `pyproject.toml` oraz
-`[install].minimumReleaseAge = 10800` w `frontend/bunfig.toml`.
-Python dopuszcza wyłącznie stabilne wydania (`prerelease = "disallow"`).
-Lockfile zachowują wybrane wersje przy instalacji `--locked` / `--frozen-lockfile`.
-
-Aktualizację wykonujemy przez `uv lock --upgrade` i `bun update --latest --exact`
-w katalogu frontend, a potem sprawdzamy testy, typy, build i natywny smoke GUI.
-TypeScript 7.0.2 jest obecnie niezgodny z vue-tsc 3.3.12; pozostajemy przy
-najnowszym zgodnym 6.0.3. Nie należy zatwierdzać przejścia na 7 przed
-potwierdzeniem działania `bun run check`.
+Modele i obsługa systemów w kodzie nie stanowią deklaracji pełnej zgodności.
+[Interpretacja danych i ograniczenia API](core-api.md).

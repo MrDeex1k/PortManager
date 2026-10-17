@@ -1,15 +1,15 @@
-# Kubernetes — opcjonalna warstwa 2
+# Kubernetes — NodePort i port-forward
 
-Stan implementacji: 2026-10-08. `--kube` włącza odczyt konfiguracji klastra
+`--kube` włącza odczyt konfiguracji klastra
 przez zainstalowany `kubectl` oraz rozpoznawanie lokalnych sesji port-forward.
 Bez tej flagi aplikacja nie uruchamia kubectl ani nie czyta kubeconfig;
-heurystyczne tagi K8s z warstwy 1 nadal działają.
+heurystyczne tagi K8s nadal działają.
 
 ```bash
-uv run portscanner --cli --kube
-uv run portscanner --cli --kube --json --filter demo
-uv run portscanner --kube                       # TUI
-uv run --extra gui portscanner --gui --kube     # GUI
+uv run --locked portscanner --cli --kube
+uv run --locked portscanner --cli --kube --json --filter demo
+uv run --locked portscanner --kube                       # TUI
+uv run --locked --extra gui portscanner --gui --kube     # GUI
 ```
 
 CLI pozwala zmienić budżet źródła przez `--timeout`; TUI i GUI używają 3 s.
@@ -49,9 +49,7 @@ Po timeout lub przekroczeniu limitu proces i jego potomkowie są kończone;
 na macOS/Linux używamy osobnej grupy procesów. Windows używa Job Object
 z `KILL_ON_JOB_CLOSE`. Proces pomocniczy czeka na przypisanie do joba przed
 uruchomieniem kubectl, więc potomkowie należą do joba także po zakończeniu
-rodzica. Nieudane przypisanie przerywa start kubectl. Natywne testy Windows
-są dostępne w `tests/test_windows_job.py`; Windows pozostaje poza matrycą
-zweryfikowaną na macOS. Konto potrzebuje uprawnień listowania services we wszystkich
+rodzica. Nieudane przypisanie przerywa start kubectl. Konto potrzebuje uprawnień listowania services we wszystkich
 namespace oraz nodes. Te odczyty nie stanowią atomowej migawki klastra.
 
 Brak kubectl daje `unavailable`, a błąd konfiguracji, RBAC, timeout lub
@@ -95,8 +93,8 @@ identyfikacją konkretnego poda wybranego przez usługę.
 
 ## Kontrakt
 
-`collect_snapshot(kube=True)` dodaje raport `kubernetes`. `PortEntry` ma
-nowe pole `kubernetes: tuple[KubernetesPort, ...]` (JSON: tablica, domyślnie
+`collect_snapshot(kube=True)` dodaje raport `kubernetes`. `PortEntry` zawiera
+pole `kubernetes: tuple[KubernetesPort, ...]` (JSON: tablica, domyślnie
 pusta), także przy wyłączonej fladze. Każde mapowanie zawiera:
 
 - `kind`: `nodeport` lub `port-forward`;
@@ -108,66 +106,18 @@ pusta), także przy wyłączonej fladze. Każde mapowanie zawiera:
 
 Wiersze NodePort grupujemy po protokole, adresie i porcie, zachowując wszystkie
 mapowania. Filtr tekstowy uwzględnia namespace, zasób, węzeł, kontekst i rodzaj
-mapowania. Dodanie pola oraz wartości `origin="kubernetes"` wymaga aktualizacji
-konsumentów JSON, którzy walidują zamkniętą listę pól lub wartości origin.
+mapowania. Konsumenci JSON powinni uwzględniać pole `kubernetes` oraz
+`origin="kubernetes"` w walidacji schematu.
 
-## Weryfikacja
 
-Weryfikacja usprawnień 2026-10-08 na macOS: **349 testów zaliczonych,
-4 pominięte** (systemowy odczyt gniazd i 3 natywne testy Windows).
-Ruff lint/format i Pyrefly bez błędów; frontend: 4 testy Bun, vue-tsc,
-formatowanie i build Vite zaliczone. Natywny smoke WebKit potwierdził
-przełącznik Kubernetes, filtr, inspektor, eksport i operacje na procesach.
-Testy cache obejmują nieblokujący odczyt, TTL, ręczne odświeżenie, zmianę IP,
-wyłączenie w trakcie żądania i zachowanie danych po błędzie klastra.
+## Zakres zgodności
 
-Weryfikacja 2026-10-03 na macOS: pytest **325 zaliczonych, 1 pominięty**
-(uprawnienia systemowego odczytu gniazd), Ruff lint/format i Pyrefly bez błędów.
-Frontend: formatowanie, vue-tsc, 3 testy Bun i produkcyjny build Vite zaliczone.
-Natywny smoke WebKit zaliczony, w tym filtr i inspektor Kubernetes.
-
-Testy używają kontrolowanych odpowiedzi kubectl: lokalny/zdalny węzeł, IPv6,
-TCP/UDP, niestandardowy zakres portów, błędne dane, timeout i brak uprawnień.
-Sprawdzają też port-forward, domyślny brak odczytu klastra, serializację mostka
-i wybór interfejsu z `--kube`. Natywny smoke GUI obejmuje filtr Kubernetes,
-inspektor NodePort i brak przycisku zakończenia procesu dla wpisu konfiguracji.
-
-### Próba na rzeczywistym OrbStack — 2026-10-03
-
-Klaster `orbstack`, Kubernetes `v1.35.6+orb1`, węzeł Ready. Utworzono
-izolowany namespace z nginx i usługą NodePort; bez zmian istniejących aplikacji.
-
-- Pod osiągnął Ready. HTTP przez lokalny port-forward zwróciło 200.
-- Core rozpoznał rzeczywiste gniazda procesu kubectl (IPv4/IPv6), PID,
-  namespace, kontekst oraz nazwany port docelowy `http`.
-- Odczyt services/nodes przez `collect_kube` dał raport `ok`.
-- NodePort nie został przypisany do macOS, ponieważ IP węzła nie jest lokalnym
-  IP hosta. Parser utworzył poprawne rekordy bez PID dla danych z żywego API
-  i rzeczywistych interfejsów Linux odczytanych w kontenerze z siecią hosta.
-  Nie był to pełny przebieg aplikacji uruchomionej na Linuxie.
-- Rzeczywista odmowa RBAC (impersonowany użytkownik bez dostępu) dała
-  `partial` i zachowała mapowania port-forward. Nie zmieniano ról klastra.
-- Nieosiągalny endpoint w tymczasowej kopii kubeconfig dał `partial` po około
-  1 s przy budżecie 1 s. Nie wyłączano API użytkownika.
-- Pełne CLI na macOS zachowało poprawny JSON i zgłosiło kod 1: brak uprawnień
-  do systemowego odczytu listeners. Kubernetes miał status `ok`. Test
-  port-forward korzystał z rzeczywistych gniazd odczytanych bezpośrednio dla
-  własnego procesu potomnego; nie dowodzi widoczności w zwykłym pełnym skanie.
-
-Po testach potwierdzono brak testowych namespace i procesów port-forward.
-Tymczasowe kopie kubeconfig usunięto; bieżący kontekst pozostał `orbstack`.
-Pełna weryfikacja aplikacji na Linuxie i pełnego odczytu gniazd na macOS
-z odpowiednimi uprawnieniami pozostają osobnymi kontrolami.
+Zweryfikowana platforma aplikacji to macOS ARM64. Integracja z klastrem
+w VM nie oznacza, że adres węzła jest lokalnym adresem hosta: NodePort może
+nie utworzyć wpisu, mimo że API klastra odpowiada poprawnie. Sam odczyt API
+nie potwierdza pełnej widoczności gniazd hosta.
+[Platformy i uprawnienia](release.md#platformy-i-uprawnienia).
 
 Źródła kontraktu Kubernetes:
 [Service i NodePort](https://kubernetes.io/docs/concepts/services-networking/service/),
 [kubectl port-forward](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_port-forward/).
-
-### Poprawki po przeglądzie
-
-Pojedynczy odczyt services/nodes zapobiega mieszaniu kontekstów. Runner
-ogranicza na bieżąco stdout i stderr łącznie oraz sprząta procesy potomne.
-Regresje korzystają z rzeczywistych procesów testowych, w tym symulowanego
-pluginu uwierzytelniającego. Pełna kontrola po poprawkach: **331 testów
-zaliczonych, 1 pominięty**, Ruff i Pyrefly bez błędów. Ponowny odczyt
-rzeczywistego OrbStack przez nowy runner: `kubernetes: ok`.

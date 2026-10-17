@@ -1,9 +1,9 @@
 # TUI — interaktywna tabela portów
 
-Stan Fazy 5 (2026-09-07). Uruchomienie:
+Uruchomienie z katalogu repozytorium po instalacji zależności:
 
 ```bash
-uv run portscanner
+uv run --locked portscanner
 ```
 
 Brak flag uruchamia Textual. Jednorazowy odczyt nadal wymaga `--cli`;
@@ -28,12 +28,12 @@ IP, Dockera oraz konfiguracji i metryk loopback cloudflared. Nie odpytuje ipify.
 
 Filtr działa podczas pisania: `:8080` to dokładny port, `pid:42` to dokładny
 PID, pozostały tekst wyszukuje także nazwy kontenerów, Compose, hostname tuneli
-i tagi. Wielkość liter nie ma znaczenia. Puste pole przywraca wszystkie wpisy.
+i tagi oraz pola Kubernetes. Wielkość liter nie ma znaczenia. Puste pole przywraca wszystkie wpisy.
 Błędny filtr pokazuje komunikat przy polu i pustą tabelę; eksport jest wtedy
 zablokowany. Litery skrótów w polu filtra są zwykłym tekstem.
 
 Tabela ma kolumny `PROTO`, `BIND`, `PORT`, `PID`, `PROC`, `DOCKER`, `TUNNEL`,
-`TAG`, `ŹRÓDŁO`. Bind zawiera adres, port ma własną kolumnę. Przy braku PID
+`TAG`, `KUBERNETES`, `ŹRÓDŁO`. Bind zawiera adres, port ma własną kolumnę. Przy braku PID
 widoczne jest `?`; częściowy odczyt procesu ma status przy nazwie.
 Mapowania zawierają nazwę kontenera, host → port kontenera i projekt/usługę
 Compose. Tunel jest regułą konfiguracji, a tag K8s heurystyką z podaną podstawą.
@@ -55,8 +55,7 @@ nie całej migawki. Wyjście może poczekać na już rozpoczęty odczyt wątku.
 
 Różnice są nanoszone przez dodanie/usunięcie wierszy i aktualizację zmienionych
 komórek, bez czyszczenia całej tabeli. Klucz to `(proto, bind, port, pid, origin)`:
-rozszerza pierwotny plan o PID i pochodzenie, aby nie scalać procesów
-współdzielących port ani publikacji Dockera. Sortowanie używa liczbowych portów
+rozróżnia procesy współdzielące port oraz publikacje Dockera. Sortowanie używa liczbowych portów
 i PID. Zaznaczony wpis pozostaje zaznaczony po sortowaniu i odświeżeniu, o ile
 nadal jest widoczny; po jego usunięciu kursor zostaje przy najbliższym wierszu.
 
@@ -108,29 +107,14 @@ wykonuje tej komendy. Politykę i pełną allowlistę opisuje [CLI](cli.md).
    odświeżenie. Błąd nie zamyka TUI. W czasie weryfikacji i kończenia nie można
    zlecić kolejnego kill ani wyjść przez `q`; filtr i nawigacja pozostają aktywne.
 
-## Weryfikacja Fazy 5
-
-Testy [Textual Pilot](https://textual.textualize.io/guide/testing/) obejmują
-start, skróty, filtr, sortowanie, różnice migawek i zaznaczenie, tick timera
-przy wolnym odczycie, raporty i odzyskanie działania po błędzie, JSON i odmowę
-nadpisania, anulowanie/zgodę/force oraz zmianę tabeli podczas dialogu.
-Wolne kończenie procesu nie blokuje nawigacji ani nie uruchamia drugiej operacji.
-Testy interakcji nie wysyłają sygnałów do rzeczywistych procesów.
-
-macOS / Python 3.13: 231 testów zaliczonych, 1 pominięty z powodu uprawnień
-systemowego odczytu gniazd. Ruff lint i format bez błędów, Pyrefly 0 błędów.
-Uruchomiono także komendę `portscanner` w terminalu PTY: pokazała raporty
-ograniczeń odczytu i zamknęła się przez `q` z kodem 0. Pełna matryca terminali
-Windows/Linux/macOS oraz instalacja release przez pipx pozostają w Fazie 6.
-Zbudowano sdist i wheel; wheel zawiera cały pakiet `tui/` oraz wspólne
-formatowanie `presentation.py`.
-
-Aktualna weryfikacja wydania na macOS, pipx i odroczone środowiska
-Windows/Linux: [Faza 6](release.md).
-
 ## Opcjonalny Kubernetes
 
-`portscanner --kube` włącza źródło Kubernetes w tle przy każdym odświeżeniu.
+`portscanner --kube` włącza kontekst Kubernetes. Lokalne cele port-forward są
+aktualizowane przy każdym skanie, a dane NodePort są odczytywane w tle co 30 s.
+`r` wymusza odświeżenie danych klastra. Wiek danych i ewentualny błąd odczytu
+są widoczne w podsumowaniu; po błędzie zachowywane są poprzednie mapowania.
 Kolumna KUBERNETES pokazuje namespace, zasób, port docelowy i pochodzenie
 mapowania. Błędy źródła pozostają w raportach; filtr i eksport uwzględniają
 nowe dane. [Zakres i ograniczenia](kubernetes.md).
+
+Platformy i instalacja: [instalacja i pakowanie](release.md).
