@@ -12,6 +12,10 @@ podpisanego instalatora ani opublikowanego pakietu PyPI.
   [frontend/package.json](../frontend/package.json) oraz Node do uruchamiania vue-tsc.
 - Do odpowiednich integracji: lokalny Docker, cloudflared lub kubectl.
   Niedostępność integracji jest raportowana i nie usuwa danych pozostałych źródeł.
+- GUI na macOS wymaga WebKit z obsługą Safari 16.4 lub nowszego (target Vite
+  i CSS Tailwind). Sam wpis macOS 12.0 w skrócie `.app` nie gwarantuje tej wersji
+  WebKit; na Monterey trzeba również zaktualizować Safari.
+  [Dostępność Safari 16.4](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes).
 
 ## Uruchomienie ze źródeł
 
@@ -38,22 +42,33 @@ uv run --locked --extra gui portscanner --gui
 
 ## Budowanie pakietu
 
-Komenda `uv build` tworzy sdist i wheel w `dist/`. Dla CLI/TUI wystarczy środowisko
-Pythona. Pełny pakiet z GUI wymaga wcześniejszego builda Vite:
+Zalecana ścieżka wydania tworzy sdist i wheel w `dist/`, budując w katalogu
+tymczasowym. Wariant CLI/TUI nie dołącza lokalnych zasobów GUI, nawet jeśli
+wcześniej zbudowano je w repozytorium:
 
 ```bash
-uv sync --locked --extra gui
-cd frontend
-bun install --frozen-lockfile
-bun run build
-cd ..
-uv build
+uv run --locked python scripts/build_release.py
 ```
 
-Build Vite zapisuje HTML, JavaScript, CSS i ikony w `portscanner/gui/assets/`.
-Ten katalog jest ignorowany przez Git i dołączany do dystrybucji przez Hatchling.
-Samo `uv build` na świeżym klonie nie generuje zasobów GUI. `node_modules`
-nie jest częścią dystrybucji. Po zmianie frontendu zbuduj go ponownie przed wheel.
+Pełny pakiet z GUI wymaga Bun i Node. Skrypt instaluje zależności frontendu
+z lockfile'a w katalogu tymczasowym i zawsze wykonuje świeży build Vite:
+
+```bash
+uv run --locked python scripts/build_release.py --gui
+```
+
+Opcja `--output /ścieżka` wybiera katalog artefaktów. Skrypt sprawdza tożsamość
+pakietu, punkty wejścia oraz kompletność zasobów wskazanych przez HTML przed
+opublikowaniem artefaktów. Nieudana kopia nie uszkadza wcześniejszego pliku.
+Warianty CLI/TUI i GUI mają tę samą nazwę i wersję wheel; aby zachować oba,
+wybierz różne katalogi wyjściowe.
+
+Niskopoziomowe `uv build` nadal działa i tworzy wheel z sdist. Nie uruchamia
+Vite: dołącza istniejące `portscanner/gui/assets/`, jeśli są dostępne, bez
+sprawdzania ich świeżości. Do wydań używaj skryptu powyżej. Sdist ma jawną listę
+katalogów i plików źródłowych; pliki robocze z katalogu głównego, `node_modules`
+i raporty testów przeglądarkowych nie są dołączane. Źródłowa ikona 1024 px
+pozostaje w sdist, ale nie trafia do zasobów GUI w wheel.
 
 ## Instalacja przez pipx
 
@@ -101,12 +116,29 @@ uv run --locked python scripts/verify_release.py dist/portscanner-0.1.0-py3-none
 ```
 
 Skrypt instaluje wheel przez pipx w tymczasowym katalogu, sprawdza `pip check`
-oraz CLI i TUI headless poza repozytorium. Drukuje nazwę pakietu i SHA256,
+oraz CLI i TUI headless poza repozytorium. Kod wyjścia CLI jest porównywany
+ze strukturalnym raportem listeners, także przy poprawnym częściowym odczycie.
+Drukuje nazwę pakietu i SHA256,
 po czym usuwa środowisko testowe. Pobiera pipx i zależności, jeżeli nie ma ich
-w cache. Nie weryfikuje natywnego GUI ani instalacji dodatku `gui`.
+w cache. Nie dziedziczy docelowych katalogów instalacji pip/pipx ani pliku
+konfiguracji pip użytkownika; zachowuje jawne zmienne indeksów i certyfikatów.
+Cache pobranych pakietów może zostać uzupełniony.
+
+Pełna paczka GUI wymaga dodatkowej weryfikacji:
+
+```bash
+uv run --locked python scripts/verify_release.py dist/portscanner-0.1.0-py3-none-any.whl --gui
+```
+
+`--gui` odrzuca wheel bez frontendu, instaluje dodatek `[gui]`, importuje pywebview
+i sprawdza metadane oraz ścieżkę zasobów z zainstalowanego pakietu. Nie otwiera
+okna i nie potwierdza dostępności natywnego backendu graficznego.
+`--inspect-only` sprawdza samo archiwum, bez instalacji i pobierania zależności;
+można połączyć tę opcję z `--gui`.
 
 Dodaj `--interactive`, aby sprawdzić zainstalowane TUI w terminalu; `q` kończy
-aplikację. Opcja `--python /pełna/ścieżka/do/python` wybiera interpreter.
+aplikację. Sesja interaktywna nie jest przerywana po pięciu minutach.
+Opcja `--python /pełna/ścieżka/do/python` wybiera interpreter.
 Kontrole kodu i natywny smoke desktopu: [rozwój i testy](development.md#zakres-testów).
 
 ## Platformy i uprawnienia

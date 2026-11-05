@@ -5,13 +5,15 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "frontend/public/icons/portmanager.png"
+SOURCE = ROOT / "frontend/icons/portmanager.png"
 OUTPUT = ROOT / "portscanner/gui/icons/portmanager.icns"
 
 
 def main() -> None:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="portmanager-icon-") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix=".portmanager-icon-", dir=OUTPUT.parent
+    ) as directory:
         iconset = Path(directory) / "PortManager.iconset"
         iconset.mkdir()
         for size in (16, 32, 128, 256, 512):
@@ -30,11 +32,16 @@ def main() -> None:
                         str(destination),
                     ],
                     check=True,
+                    timeout=30,
                     stdout=subprocess.DEVNULL,
                 )
+        generated = Path(directory) / "portmanager.icns"
         subprocess.run(
-            ["iconutil", "-c", "icns", str(iconset), "-o", str(OUTPUT)], check=True
+            ["iconutil", "-c", "icns", str(iconset), "-o", str(generated)],
+            check=True,
+            timeout=30,
         )
+        generated.replace(OUTPUT)
     print(OUTPUT)
 
 

@@ -98,6 +98,10 @@ Generator tworzy ikonę ICNS, `Info.plist` i launcher wykonujący `portscanner -
 Odmawia zastąpienia istniejącej ścieżki. Nie kopiuje interpretera ani zależności:
 wskazane środowisko musi pozostać w tej samej lokalizacji. Bundle jest niepodpisany
 i nie jest samodzielnym instalatorem aplikacji.
+Odmowa dotyczy również dowiązań symbolicznych, także prowadzących do nieistniejącego
+celu. Launcher uzupełnia PATH Findera o katalog polecenia oraz standardowe katalogi
+Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`). Narzędzia z niestandardowych
+lokalizacji muszą być dostępne w PATH środowiska uruchomienia.
 
 ## Podgląd i development
 

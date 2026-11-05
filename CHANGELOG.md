@@ -3,6 +3,19 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Poprawki pakowania i wydań — 2026-11-05
+
+- Izolowany build CLI/TUI lub GUI ze świeżym frontendem i weryfikacją archiwum
+  przed opublikowaniem artefaktów; jawna lista zawartości sdist.
+- Weryfikacja metadanych, punktów wejścia i lokalnych zasobów wheel, opcje
+  `--inspect-only` i `--gui` oraz instalacja dodatku GUI w tymczasowym pipx.
+- Poprawna obsługa częściowych odczytów CLI w smoke instalacji i izolacja
+  konfiguracji pip/pipx; brak limitu pięciu minut dla sesji interaktywnej.
+- Odmowa publikacji skrótu `.app` pod dowiązaniem symbolicznym i PATH dla narzędzi
+  uruchamianych z Findera.
+- Usunięcie źródłowego PNG 1024 px z zasobów runtime GUI (około 1,25 MB mniej
+  nieskompresowanych danych); atomowe generowanie ICNS z timeoutami narzędzi.
+
 ## Poprawki mostka desktopowego i Vue — 2026-11-05
 
 - Jawna lista operacji Python–JS zamiast wystawiania obiektu backendu,
