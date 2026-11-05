@@ -27,6 +27,8 @@ class TunnelInfoPayload(TypedDict):
     config_status: Literal["explicit", "inferred", "remote", "unavailable", "error"]
     metrics_status: Literal["ok", "unavailable", "error", "disabled"]
     connections: int | None
+    config_code: str | None
+    metrics_code: str | None
 
 
 class ServiceTagPayload(TypedDict):
@@ -79,3 +81,4 @@ class SourceReportPayload(TypedDict):
     age_seconds: float | None
     stale: bool
     refreshing: bool
+    code: str | None

@@ -1,157 +1,96 @@
-"""Ograniczony odczyt kubectl i sprzątanie procesów uwierzytelniania."""
+"""Read one explicit Kubernetes context with bounded, projected CLI output."""
 
+import json
 import os
-import queue
-import shutil
-import signal
 import subprocess
-import sys
-import threading
 import time
-from typing import BinaryIO
+from pathlib import Path
 
-from portscanner.core.windows_job import WindowsJob
+from portscanner.core.command import run_command
 
 OUTPUT_LIMIT = 4 * 1024 * 1024
 
+# Names and addresses come from Kubernetes-validated string fields. printf %q
+# quotes them; no annotations, credentials, node images or managedFields leave kubectl.
+_PROJECTION = """{"items":[{{range $i, $v := .items}}{{if $i}},{{end}}
+{"kind":{{printf "%q" .kind}},"metadata":{"name":{{printf "%q" .metadata.name}}
+{{if eq .kind "Service"}},"namespace":{{printf "%q" .metadata.namespace}}{{end}}}
+{{if eq .kind "Service"}},"spec":{"type":{{printf "%q" .spec.type}},"ports":[
+{{range $j, $p := .spec.ports}}{{if $j}},{{end}}{"port":{{.port}},
+"nodePort":{{if .nodePort}}{{.nodePort}}{{else}}0{{end}},
+"protocol":{{printf "%q" .protocol}}}{{end}}]}
+{{else}},"status":{"addresses":[{{range $j, $a := .status.addresses}}
+{{if $j}},{{end}}{"type":{{printf "%q" .type}},"address":{{printf "%q" .address}}}
+{{end}}]}{{end}}}{{end}}]}"""
 
-def _stop_tree(process: subprocess.Popen[bytes], job: WindowsJob | None = None) -> None:
-    if os.name == "posix":
-        # Osobna sesja obejmuje również pluginy exec i ich potomków.
+
+class ConfigChangedError(ValueError):
+    """The selected kubeconfig changed while a read was in progress."""
+
+
+def config_fingerprint(env: dict[str, str] | None = None) -> tuple:
+    """Identify config revisions by path and file metadata without reading secrets."""
+    environment = os.environ if env is None else env
+    paths = environment.get("KUBECONFIG") or str(Path.home() / ".kube/config")
+    result = []
+    for raw in paths.split(os.pathsep):
+        if not raw:
+            continue
+        path = Path(raw).absolute()
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    elif job is not None:
-        job.close()
-    else:
-        process.kill()
-    process.wait()
-
-
-# Proces czeka, aż rodzic przypisze go do Job Object. Dopiero potem uruchamia
-# kubectl, którego stdin pozostaje zamknięte. Nie ma wyścigu ze startem pluginu.
-_WINDOWS_GATE = """import subprocess, sys
-if sys.stdin.buffer.read(1) != b'1':
-    sys.exit(1)
-try:
-    code = subprocess.call(sys.argv[1:], stdin=subprocess.DEVNULL)
-except OSError:
-    sys.exit(127)
-sys.exit(code)
-"""
-
-
-def _start(command: list[str]) -> tuple[subprocess.Popen[bytes], WindowsJob | None]:
-    if os.name != "nt":
-        return subprocess.Popen(
-            command,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        ), None
-    executable = shutil.which(command[0])
-    if executable is None:
-        raise FileNotFoundError("Brak kubectl")
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            "-I",
-            "-u",
-            "-c",
-            _WINDOWS_GATE,
-            str(executable),
-            *command[1:],
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    job = None
-    try:
-        job = WindowsJob(process.pid)
-        assert process.stdin is not None
-        process.stdin.write(b"1")
-        process.stdin.close()
-        return process, job
-    except BaseException:
-        try:
-            _stop_tree(process, job)
-        finally:
-            for stream in (process.stdin, process.stdout, process.stderr):
-                if stream is not None:
-                    stream.close()
-        raise
+            stat = path.stat()
+            stamp = (
+                stat.st_dev,
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+                stat.st_ctime_ns,
+            )
+        except OSError as error:
+            stamp = ("unreadable", error.errno)
+        result.append((str(path), stamp))
+    return tuple(result)
 
 
 def run_kubectl(resource: str, timeout: float) -> str:
-    """Limit stdout + stderr łącznie, egzekwowany przed dekodowaniem JSON."""
-    command = [
-        "kubectl",
-        "get",
-        resource,
-        "--all-namespaces",
-        "--output=json",
-        f"--request-timeout={timeout:.3f}s",
-    ]
+    """Pin a context and reject results if any kubeconfig file changed mid-read."""
+    env = os.environ.copy()
+    fingerprint = config_fingerprint(env)
     deadline = time.monotonic() + timeout
-    process, job = _start(command)
-    chunks: queue.Queue[tuple[bool, bytes | None]] = queue.Queue(maxsize=16)
-    stop = threading.Event()
 
-    def read(stream: BinaryIO, stdout: bool) -> None:
-        try:
-            while not stop.is_set():
-                data = os.read(stream.fileno(), 8192)
-                while not stop.is_set():
-                    try:
-                        chunks.put((stdout, data or None), timeout=0.05)
-                        break
-                    except queue.Full:
-                        pass
-                if not data:
-                    break
-        finally:
-            stream.close()
+    def invoke(args: list[str], limit: int) -> str:
+        """Consume the shared deadline and suppress stderr and command arguments."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired("kubectl", timeout)
+        result = run_command(["kubectl", *args], remaining, limit=limit, env=env)
+        if result.returncode:
+            raise subprocess.CalledProcessError(result.returncode, "kubectl")
+        return result.stdout.decode("utf-8")
 
-    assert process.stdout is not None and process.stderr is not None
-    readers = [
-        threading.Thread(target=read, args=(process.stdout, True), daemon=True),
-        threading.Thread(target=read, args=(process.stderr, False), daemon=True),
-    ]
-    output = bytearray()
-    total = 0
-    remaining_streams = 2
-    try:
-        for reader in readers:
-            reader.start()
-        while remaining_streams:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise subprocess.TimeoutExpired("kubectl", timeout)
-            try:
-                stdout, data = chunks.get(timeout=remaining)
-            except queue.Empty as error:
-                raise subprocess.TimeoutExpired("kubectl", timeout) from error
-            if data is None:
-                remaining_streams -= 1
-                continue
-            total += len(data)
-            if total > OUTPUT_LIMIT:
-                raise ValueError("Zbyt duża odpowiedź Kubernetes")
-            if stdout:
-                output.extend(data)
-        code = process.wait(timeout=max(0, deadline - time.monotonic()))
-        if code:
-            # Stderr może zawierać poświadczenia; nie utrwalamy go w wyjątku.
-            raise subprocess.CalledProcessError(code, "kubectl")
-        return output.decode("utf-8")
-    finally:
-        stop.set()
-        try:
-            _stop_tree(process, job)
-        finally:
-            for reader in readers:
-                if reader.ident is not None:
-                    reader.join(timeout=1)
+    context = invoke(["config", "current-context"], 65536).strip()
+    if not context or "\n" in context or "\x00" in context:
+        raise ValueError("Nieprawidłowy kontekst Kubernetes")
+    if config_fingerprint(env) != fingerprint:
+        raise ConfigChangedError()
+    remaining = deadline - time.monotonic()
+    output = invoke(
+        [
+            "--context",
+            context,
+            "get",
+            resource,
+            "--all-namespaces",
+            "-o",
+            "go-template=" + _PROJECTION,
+            f"--request-timeout={max(0, remaining):.3f}s",
+        ],
+        OUTPUT_LIMIT,
+    )
+    if config_fingerprint(env) != fingerprint:
+        raise ConfigChangedError()
+    payload = json.loads(output)
+    if not isinstance(payload, dict):
+        raise ValueError("Nieprawidłowa odpowiedź Kubernetes")
+    payload["context"] = context
+    return json.dumps(payload)

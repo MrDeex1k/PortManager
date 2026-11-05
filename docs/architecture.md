@@ -29,7 +29,8 @@ Awaria źródła opcjonalnego nie usuwa wyników pozostałych źródeł.
 | `core/model.py` | Modele gniazd, procesów, powiązań i raportów |
 | `core/listeners.py`, `procs.py`, `ips.py` | Odczyt systemowy przez psutil i adresy IP |
 | `core/docker.py`, `cloudflared.py`, `k8s.py` | Publikacje kontenerów, reguły tuneli i tagi heurystyczne |
-| `core/kube.py`, `kube_command.py`, `kube_cache.py` | Odczyt klastra, kontrola podprocesów i cache |
+| `core/kube.py`, `kube_command.py`, `kube_cache.py` | Odczyt klastra, przypięcie kontekstu i cache |
+| `core/command.py`, `discovery_errors.py` | Ograniczony odczyt poleceń i plików, sprzątanie podprocesów oraz bezpieczne kody diagnostyczne |
 | `core/snapshot.py`, `filtering.py` | Scalanie źródeł i wspólna składnia filtrów |
 | `core/actions.py` | Weryfikacja celu i reguły kończenia procesów |
 | `presentation.py`, `cli.py`, `tui/` | Prezentacja w terminalu i obsługa interakcji |
@@ -49,7 +50,8 @@ Awaria źródła opcjonalnego nie usuwa wyników pozostałych źródeł.
 - **TanStack Query i Table.** Frontend zarządza cyklem odczytu, sortowaniem
   i wyborem wierszy, a filtry tekstowe w trybie desktopowym wykonuje core.
 - **Osobny cache Kubernetes.** Odczyt klastra co 30 s nie blokuje lokalnych
-  odświeżeń co 2 s. Błąd zachowuje poprzednie mapowania z jawnym statusem i wiekiem.
+  odświeżeń co 2 s. Błąd zachowuje poprzednie mapowania z jawnym statusem i wiekiem
+  wyłącznie w obrębie niezmienionej konfiguracji i lokalnych adresów.
 
 ## Operacje na procesach
 

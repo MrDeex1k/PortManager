@@ -15,6 +15,7 @@ class SourceReport:
     age_seconds: float | None = None
     stale: bool = False
     refreshing: bool = False
+    code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,8 @@ class TunnelInfo:
     )
     metrics_status: Literal["ok", "unavailable", "error", "disabled"] = "unavailable"
     connections: int | None = None
+    config_code: str | None = None
+    metrics_code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

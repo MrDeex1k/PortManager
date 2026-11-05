@@ -59,10 +59,14 @@ korzysta z gotowych zasobów Vite.
 - **GUI:** testy mostka obejmują serializację, filtrowanie, eksport,
   współbieżność, weryfikację celu i jednorazowość zgody.
 - **Integracje lokalne:** gniazda loopback, interfejsy, HTTP loopback i operacje
-  na tymczasowym procesie utworzonym przez test.
+  na tymczasowym procesie utworzonym przez test, powolne odpowiedzi HTTP,
+  odczyt FIFO i sprzątanie potomków poleceń.
 
 Testy integracyjne wymagają możliwości tworzenia gniazd loopback.
 Część testów zależy od systemu i uprawnień; powody pominięć pokazuje `pytest -rs`.
+Test projekcji Kubernetes używa zainstalowanego `kubectl`, tymczasowego kubeconfig
+i serwera API na loopback; bez kubectl zostaje pominięty. Nie kontaktuje się
+z klastrem użytkownika.
 Kontrolowane odpowiedzi Docker, tuneli i kubectl sprawdzają kontrakty, ale
 nie zastępują pełnej weryfikacji na wszystkich systemach i wdrożeniach usług.
 

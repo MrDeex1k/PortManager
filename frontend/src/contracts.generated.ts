@@ -22,6 +22,8 @@ export interface TunnelInfo {
   config_status: 'explicit' | 'inferred' | 'remote' | 'unavailable' | 'error'
   metrics_status: 'ok' | 'unavailable' | 'error' | 'disabled'
   connections: number | null
+  config_code: string | null
+  metrics_code: string | null
 }
 export interface ServiceTag {
   name: 'k8s' | 'k3s' | 'microk8s'
@@ -68,6 +70,7 @@ export interface SourceReport {
   age_seconds: number | null
   stale: boolean
   refreshing: boolean
+  code: string | null
 }
 export interface AppInfo {
   name: string

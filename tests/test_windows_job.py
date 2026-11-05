@@ -13,8 +13,7 @@ from unittest.mock import Mock
 import psutil
 import pytest
 
-from portscanner.core import kube_command as command
-from portscanner.core import windows_job
+from portscanner.core import command, windows_job
 
 
 def test_job_tracks_processes_independently_of_parent_lifetime(
@@ -108,17 +107,20 @@ open({str(pid_file)!r}, 'w').write(str(p.pid))
 """
     real_start = command._start
     monkeypatch.setattr(
-        command, "_start", lambda args: real_start([sys.executable, "-c", script])
+        command,
+        "_start",
+        lambda args, **kwargs: real_start([sys.executable, "-c", script]),
     )
-    monkeypatch.setattr(command, "OUTPUT_LIMIT", 32768)
     try:
         if ending == "success":
-            assert command.run_kubectl("services,nodes", 3).strip() == "{}"
+            assert (
+                command.run_command(["kubectl"], 3, limit=32768).stdout.strip() == b"{}"
+            )
         else:
             with pytest.raises(
                 subprocess.TimeoutExpired if ending == "timeout" else ValueError
             ):
-                command.run_kubectl("services,nodes", 2)
+                command.run_command(["kubectl"], 2, limit=32768)
         if pid_file.exists():
             try:
                 child = psutil.Process(int(pid_file.read_text()))
