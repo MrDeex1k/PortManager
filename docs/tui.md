@@ -21,10 +21,13 @@ IP, Dockera oraz konfiguracji i metryk loopback cloudflared. Nie odpytuje ipify.
 | Strzałki góra/dół | Zaznacz wiersz |
 | Strzałki lewo/prawo | Przewijaj szeroką tabelę |
 | `s` | Przełącz sortowanie rosnące: port / nazwa procesu |
-| `r` | Odśwież teraz, jeśli poprzedni odczyt się zakończył |
+| `r` | Odśwież teraz lub zapamiętaj żądanie do wykonania po bieżącym odczycie |
 | `j` | Zapisz widoczne dane jako JSON |
+| `d` | Otwórz pełną diagnostykę migawki; `Esc` zamyka |
 | `k` | Zweryfikuj proces i otwórz dialog zgody |
 | `q` | Wyjdź z aplikacji |
+| `Ctrl+Q` | Wyjdź również z pola filtra, z zachowaniem blokady trwających operacji |
+| `Tab` / `Shift+Tab` | Przejdź między filtrem, panelami informacji i tabelą |
 
 Filtr działa podczas pisania: `:8080` to dokładny port, `pid:42` to dokładny
 PID, pozostały tekst wyszukuje także nazwy kontenerów, Compose, hostname tuneli
@@ -45,16 +48,27 @@ częściowych źródeł. Długie sekcje i tabela mają przewijanie. Brak uprawni
 nie zamyka aplikacji i nie powoduje automatycznego podniesienia uprawnień.
 Nieoczekiwany błąd całego odświeżenia pozostawia poprzednią migawkę z jawnym
 komunikatem. Pusta tabela nie jest dowodem braku portów, gdy źródło zawiodło.
+Panele IP, raportów, connectorów i komunikatów można przewijać z klawiatury:
+po ustawieniu fokusu użyj strzałek, PageUp/PageDown lub Home/End.
+`Esc` wraca do tabeli. Widok `d` pokazuje pełne raporty wraz z kodami przyczyn,
+lokalne IP oraz wszystkie connectory, również bez dopasowanych portów.
+Connectory są również w osobnym panelu głównym: PID, stan konfiguracji i metryk,
+liczba połączeń oraz kody błędów. Filtr portów nie ukrywa connectorów.
 
 ## Odświeżanie i struktura
 
 Timer `set_interval(2.0)` zleca odczyt w tle. W danej chwili trwa najwyżej jeden
-odczyt; ticki i `r` podczas jego trwania są pomijane. Długa operacja nie blokuje
+odczyt; ticki podczas jego trwania są pomijane. Ręczne `r` oraz odświeżenie po
+zakończeniu procesu zapisują jedno oczekujące żądanie. Wynik wcześniejszego skanu
+jest wtedy pomijany, a worker wykonuje kolejny odczyt bez nakładania operacji.
+Wymuszenie Kubernetes jest przekazywane także podczas aktywnego skanu.
+Długa operacja nie blokuje
 pisania ani nawigacji. Domyślny timeout core wynosi 3 s dla pojedynczej operacji,
 nie całej migawki. Wyjście może poczekać na już rozpoczęty odczyt wątku.
 
 Różnice są nanoszone przez dodanie/usunięcie wierszy i aktualizację zmienionych
-komórek, bez czyszczenia całej tabeli. Klucz to `(proto, bind, port, pid, origin)`:
+komórek, bez czyszczenia całej tabeli. Niezmienione wpisy nie są ponownie formatowane.
+Klucz to `(proto, bind, port, pid, origin)`:
 rozróżnia procesy współdzielące port oraz publikacje Dockera. Sortowanie używa liczbowych portów
 i PID. Zaznaczony wpis pozostaje zaznaczony po sortowaniu i odświeżeniu, o ile
 nadal jest widoczny; po jego usunięciu kursor zostaje przy najbliższym wierszu.
@@ -75,6 +89,7 @@ klawisza**, ze wszystkimi polami modelu, także argumentami procesu. Format to
 ta sama tablica `PortEntry`, co `--cli --json`; nie zawiera raportów źródeł
 ani lokalnych IP. Przy niedostępnym źródle wynik może być częściowy — stan
 źródeł pozostaje widoczny w TUI.
+Eksport jest zapisywany strumieniowo po jednym rekordzie, w wątku roboczym.
 
 Argumenty w eksporcie i dialogu kończenia mają zamaskowane wartości znanych
 flag uwierzytelniających. Pozostałe argumenty są zachowane; zakres maskowania

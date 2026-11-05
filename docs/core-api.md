@@ -45,6 +45,9 @@ Wywołania są synchroniczne; TUI wykonuje je przez workera poza wątkiem UI.
 `SourceReport.code` zawiera bezpieczną przyczynę błędu, np. `timeout`,
 `output_limit`, `command_failed`, `invalid_data`, `not_found` lub `remote_endpoint`.
 Pole jest `None`, gdy nie ma kodu diagnostycznego; surowy stderr nie jest eksportowany.
+`listeners: partial` z kodem `udp_peer_unknown` oznacza pełny odczyt gniazd
+z niedostępną informacją o peerze UDP na Windows. CLI zachowuje wtedy kod 0
+i ostrzeżenie. Kod ten nie zastępuje błędu ani częściowego odczytu gniazd.
 
 Interfejsy cyklicznie odświeżające dane przekazują opcjonalne
 `kube_discovery=KubeDiscovery()` z `portscanner.core.kube_cache` do

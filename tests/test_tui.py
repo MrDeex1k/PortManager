@@ -11,6 +11,7 @@ from threading import Event
 from unittest.mock import Mock
 
 import pytest
+from textual.containers import VerticalScroll
 from textual.widgets import Button, Checkbox, Static
 
 from portscanner.core.actions import KillTarget, ProcessActionError
@@ -21,11 +22,12 @@ from portscanner.core.model import (
     ProcessInfo,
     Snapshot,
     SourceReport,
+    TunnelInfo,
     TunnelRoute,
 )
 from portscanner.tui import PortScannerApp
 from portscanner.tui import app as tui
-from portscanner.tui.dialogs import KillScreen
+from portscanner.tui.dialogs import DiagnosticsScreen, KillScreen
 
 
 @pytest.fixture
@@ -512,5 +514,270 @@ def test_windows_dialog_explains_hard_termination(source, monkeypatch):
             )
             await pilot.click("#cancel")
             await app.workers.wait_for_complete()
+
+    asyncio.run(scenario())
+
+
+def test_reports_and_local_ips_scroll_with_keyboard(source):
+    """Capped panels must retain all content and offer keyboard scrolling."""
+    source.return_value = replace(
+        source.return_value,
+        local_ips=tuple(
+            LocalIP(f"interface-{i}", f"192.0.2.{i}", "ipv4") for i in range(1, 25)
+        ),
+        reports=tuple(
+            SourceReport(name, "error", "message " * 25, code="timeout")
+            for name in ("listeners", "processes", "local_ips", "docker", "tunnels")
+        ),
+    )
+
+    async def scenario():
+        """Reach panel overflow and the full diagnostic view using keyboard actions."""
+        app = PortScannerApp()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            for panel_id in ("#summary-panel", "#reports-panel"):
+                panel = app.query_one(panel_id, VerticalScroll)
+                assert panel.max_scroll_y > 0
+                panel.focus()
+                await pilot.press("end")
+                await pilot.pause()
+                assert panel.scroll_y > 0
+            assert "[timeout]" in str(app.reports.content)
+            await pilot.press("escape", "d")
+            assert isinstance(app.screen, DiagnosticsScreen)
+            scroll = app.screen.query_one("#diagnostics-scroll", VerticalScroll)
+            assert app.screen.focused is scroll
+            await pilot.press("end")
+            await pilot.pause()
+            assert scroll.scroll_y > 0
+            await pilot.press("escape")
+            assert not isinstance(app.screen, DiagnosticsScreen)
+
+    asyncio.run(scenario())
+
+
+def test_standalone_connector_and_reason_codes_survive_empty_filter(source):
+    """Connector health remains visible even without any matching port row."""
+    source.return_value = replace(
+        source.return_value,
+        tunnels=(
+            TunnelInfo(
+                998877, config_status="remote", metrics_status="ok", connections=0
+            ),
+            TunnelInfo(
+                998878,
+                config_status="error",
+                config_code="unsafe_file",
+                metrics_status="error",
+                metrics_code="timeout",
+            ),
+        ),
+    )
+
+    async def scenario():
+        """Filter away every port while retaining connector state in both views."""
+        app = PortScannerApp()
+        async with app.run_test(size=(100, 32)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("/", "z", "z", "escape")
+            assert app.visible_entries == ()
+            details = str(app.tunnels.content)
+            assert "PID 998877" in details and "połączenia=0" in details
+            assert "unsafe_file" in details and "timeout" in details
+            assert app.query_one("#tunnels-panel").display
+            await pilot.press("d")
+            assert isinstance(app.screen, DiagnosticsScreen)
+            assert "unsafe_file" in " ".join(
+                str(w.content) for w in app.screen.query(Static)
+            )
+            await pilot.press("escape")
+
+    asyncio.run(scenario())
+
+
+def test_explicit_refreshes_coalesce_and_reach_kubernetes(source, monkeypatch):
+    """A busy scan must retain manual refresh intent without overlapping reads."""
+    entered, release = Event(), Event()
+    old = source.return_value
+    new = replace(old, ports=())
+
+    def first_read(**kwargs):
+        """Hold the initial read until explicit refresh requests have arrived."""
+        entered.set()
+        assert release.wait(5)
+        return old
+
+    calls = 0
+
+    def scan(**kwargs):
+        """Return the new snapshot only after the initial read is released."""
+        nonlocal calls
+        calls += 1
+        return first_read(**kwargs) if calls == 1 else new
+
+    source.side_effect = scan
+
+    async def scenario():
+        """Queue two manual requests and verify one subsequent scan consumes them."""
+        app = PortScannerApp(kube=True)
+        request = Mock(wraps=app._kube_discovery.request_refresh)
+        monkeypatch.setattr(app._kube_discovery, "request_refresh", request)
+        try:
+            async with app.run_test() as pilot:
+                await wait_until(entered.is_set)
+                await pilot.press("r", "r")
+                assert source.call_count == 1
+                assert request.call_count == 3  # Initial read and two manual requests.
+                assert app._refresh_pending
+                app._periodic_refresh()
+                assert request.call_count == 3
+                release.set()
+                await app.workers.wait_for_complete()
+                assert source.call_count == 2
+                assert app.snapshot is new and app.visible_entries == ()
+        finally:
+            release.set()
+
+    asyncio.run(scenario())
+
+
+def test_kill_during_scan_discards_old_result_and_refreshes(source, monkeypatch):
+    """A pre-termination scan cannot republish the killed process after success."""
+    entered, release = Event(), Event()
+    old = source.return_value
+    new = replace(old, ports=())
+    calls = 0
+
+    def scan(**kwargs):
+        """Delay the second read to deliver a stale pre-termination snapshot."""
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            entered.set()
+            assert release.wait(5)
+        return old if calls <= 2 else new
+
+    source.side_effect = scan
+    target = KillTarget(43, 100.0, "python", "/bin/python", ("python",))
+    monkeypatch.setattr(tui, "prepare_kill", Mock(return_value=target))
+    terminate = Mock(return_value="terminated")
+    monkeypatch.setattr(tui, "terminate_target", terminate)
+
+    async def scenario():
+        """Confirm a simulated kill while reading, then require a fresh empty result."""
+        app = PortScannerApp()
+        try:
+            async with app.run_test(size=(100, 32)) as pilot:
+                await app.workers.wait_for_complete()
+                app.action_refresh(force_kube=False)
+                await wait_until(entered.is_set)
+                await pilot.press("k")
+                await wait_until(lambda: isinstance(app.screen, KillScreen))
+                await pilot.pause()
+                await pilot.click("#confirm")
+                await wait_until(lambda: not app._action_busy)
+                assert source.call_count == 2 and app._refresh_pending
+                release.set()
+                await app.workers.wait_for_complete()
+                terminate.assert_called_once()
+                assert source.call_count == 3
+                assert app.snapshot is new and app.visible_entries == ()
+        finally:
+            release.set()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("busy", [None, "_action_busy", "_exporting"])
+def test_ctrl_q_works_in_filter_but_waits_for_active_operations(source, busy):
+    """Global quit bypasses text-entry suppression, never operation safeguards."""
+
+    async def scenario():
+        """Exercise global quit with and without a pending mutation or export."""
+        app = PortScannerApp()
+        async with app.run_test() as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("/")
+            if busy:
+                setattr(app, busy, True)
+            await pilot.press("ctrl+q")
+            assert app.is_running == bool(busy)
+            if busy:
+                assert "Poczekaj" in str(app.message.content)
+                setattr(app, busy, False)
+                await pilot.press("ctrl+q")
+                assert not app.is_running
+
+    asyncio.run(scenario())
+
+
+def test_unchanged_rows_are_not_formatted_again(source, monkeypatch):
+    """Diff-only rendering must skip cell formatting as well as widget writes."""
+
+    async def scenario():
+        """Count formatting for an unchanged snapshot and a single changed process."""
+        app = PortScannerApp()
+        async with app.run_test():
+            await app.workers.wait_for_complete()
+            cells = Mock(wraps=tui.entry_cells)
+            monkeypatch.setattr(tui, "entry_cells", cells)
+            app._render_rows()
+            cells.assert_not_called()
+            assert app.snapshot is not None
+            changed = replace(
+                app.snapshot.ports[0], process=ProcessInfo(42, "ok", "new-name")
+            )
+            app.snapshot = replace(
+                app.snapshot, ports=(changed, *app.snapshot.ports[1:])
+            )
+            app._render_rows()
+            assert cells.call_count == 2  # Old/new cells for the changed row only.
+
+    asyncio.run(scenario())
+
+
+def test_streaming_export_cleans_up_after_write_failure(tmp_path, monkeypatch):
+    """Streaming failure must not leave a partial export or remove other files."""
+    unrelated = tmp_path / "keep.txt"
+    unrelated.write_text("keep")
+
+    def fail(entries, stream):
+        stream.write("[")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(tui, "write_ports_json", fail)
+    with pytest.raises(OSError, match="disk full"):
+        tui.export_json((), tmp_path)
+    assert list(tmp_path.glob("*.json")) == []
+    assert unrelated.read_text() == "keep"
+
+
+def test_quit_during_scan_does_not_start_pending_refresh(source):
+    """A queued manual request must not restart discovery after the user exits."""
+    entered, release = Event(), Event()
+    snapshot = source.return_value
+
+    def scan(**kwargs):
+        entered.set()
+        assert release.wait(5)
+        return snapshot
+
+    source.side_effect = scan
+
+    async def scenario():
+        """Exit with a queued request, release the read, and check no restart occurs."""
+        app = PortScannerApp()
+        try:
+            async with app.run_test() as pilot:
+                await wait_until(entered.is_set)
+                await pilot.press("r")
+                assert app._refresh_pending
+                await app.action_quit_global()
+                release.set()
+        finally:
+            release.set()
+        assert source.call_count == 1
 
     asyncio.run(scenario())

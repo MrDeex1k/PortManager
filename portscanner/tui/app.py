@@ -3,13 +3,13 @@
 import asyncio
 import json
 import os
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
@@ -23,8 +23,15 @@ from portscanner.core.actions import (
 from portscanner.core.filtering import filter_entries
 from portscanner.core.kube_cache import KubeDiscovery
 from portscanner.core.model import PortEntry, Snapshot
-from portscanner.presentation import COLUMNS, entry_cells, safe_text
-from portscanner.tui.dialogs import KillScreen
+from portscanner.presentation import (
+    COLUMNS,
+    entry_cells,
+    report_text,
+    safe_text,
+    tunnel_text,
+)
+from portscanner.serialization import write_ports_json
+from portscanner.tui.dialogs import DiagnosticsScreen, KillScreen
 
 
 def row_key(entry: PortEntry) -> str:
@@ -34,13 +41,12 @@ def row_key(entry: PortEntry) -> str:
 
 def export_json(entries: tuple[PortEntry, ...], directory: Path) -> Path:
     """Nowy plik, bez nadpisania/symlinków; na POSIX dostęp tylko właściciela."""
-    data = json.dumps([asdict(entry) for entry in entries], ensure_ascii=True, indent=2)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     path = directory / f"portscanner-{stamp}.json"
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(data + "\n")
+            write_ports_json(entries, stream)
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -57,19 +63,22 @@ class PortScannerApp(App[None]):
         ("r", "refresh", "Odśwież"),
         ("k", "kill", "Zakończ proces"),
         ("j", "export", "JSON"),
+        ("d", "diagnostics", "Diagnostyka"),
         ("q", "quit", "Wyjdź"),
         Binding("escape", "table", "Tabela", show=False),
-        Binding("ctrl+q", "quit", "Wyjdź", show=False, priority=True),
+        Binding("ctrl+q", "quit_global", "Wyjdź", show=False, priority=True),
     ]
     CSS = """
     Screen { layout: vertical; }
     #filter { margin: 0 1; }
-    #summary { height: auto; max-height: 5; overflow-y: auto;
-        padding: 0 1; color: $text-muted; }
-    #reports { height: auto; max-height: 5; overflow-y: auto; padding: 0 1;
-        color: $warning; }
+    #summary-panel, #reports-panel, #tunnels-panel, #message-panel {
+        height: auto; max-height: 5; padding: 0 1;
+    }
+    #summary, #reports, #tunnels, #message { height: auto; }
+    #summary { color: $text-muted; }
+    #reports { color: $warning; }
+    #tunnels-panel, #message-panel { max-height: 3; }
     #ports { height: 1fr; margin: 0 1; }
-    #message { height: auto; max-height: 3; padding: 0 1; }
     """
 
     def __init__(
@@ -86,10 +95,13 @@ class PortScannerApp(App[None]):
         )
         self.summary = Static("Oczekiwanie na pierwszy odczyt…", id="summary")
         self.reports = Static("", id="reports", markup=False)
+        self.tunnels = Static("", id="tunnels", markup=False)
         self.message = Static("", id="message", markup=False)
         self._rows: dict[str, PortEntry] = {}
         self._sort_process = False
         self._refreshing = False
+        self._refresh_pending = False
+        self._shutdown_requested = False
         self._action_busy = False
         self._exporting = False
         self._last_update = "—"
@@ -98,26 +110,41 @@ class PortScannerApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield self.filter_input
-        yield self.summary
-        yield self.reports
+        yield VerticalScroll(self.summary, id="summary-panel")
+        yield VerticalScroll(self.reports, id="reports-panel")
+        yield VerticalScroll(self.tunnels, id="tunnels-panel")
         yield self.table
-        yield self.message
+        yield VerticalScroll(self.message, id="message-panel")
         yield Footer()
 
     def on_mount(self) -> None:
         for column in COLUMNS:
             self.table.add_column(column, key=column)
         self.table.focus()
+        self.query_one("#tunnels-panel").display = False
         self.set_interval(2.0, self._periodic_refresh)
         self.action_refresh()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in ("filter", "sort", "refresh", "kill", "export", "quit", "table"):
+        """Keep typing and modal consent isolated while allowing global quit checks."""
+        if action in (
+            "filter",
+            "sort",
+            "refresh",
+            "kill",
+            "export",
+            "quit",
+            "quit_global",
+            "table",
+            "diagnostics",
+        ):
             if isinstance(self.screen, ModalScreen):
                 return False
-            if action != "table" and isinstance(self.focused, Input):
+            if action not in ("table", "quit_global") and isinstance(
+                self.focused, Input
+            ):
                 return False
-            if self._action_busy and action in ("kill", "export"):
+            if self._action_busy and action in ("kill", "export", "diagnostics"):
                 return False
         return True
 
@@ -126,6 +153,11 @@ class PortScannerApp(App[None]):
 
     def action_table(self) -> None:
         self.table.focus()
+
+    def action_diagnostics(self) -> None:
+        """Open the full current snapshot diagnostics independently of port filters."""
+        if self.snapshot is not None:
+            self.push_screen(DiagnosticsScreen(self.snapshot))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self.table.focus()
@@ -141,35 +173,58 @@ class PortScannerApp(App[None]):
         self.action_refresh(force_kube=False)
 
     def action_refresh(self, force_kube: bool = True) -> None:
-        # Nie anulujemy odczytu wątku: następny tick/r czeka na jego zakończenie.
-        if not self._refreshing:
-            if force_kube and self.kube:
-                self._kube_discovery.request_refresh()
-            self._refreshing = True
-            self.run_worker(self._refresh(), group="snapshot")
+        """Coalesce explicit refreshes; periodic ticks never queue another read."""
+        if self._shutdown_requested:
+            return
+        if force_kube and self.kube:
+            self._kube_discovery.request_refresh()
+        if self._refreshing:
+            self._refresh_pending |= force_kube
+            return
+        self._refreshing = True
+        self.run_worker(self._refresh(), group="snapshot")
 
     async def _refresh(self) -> None:
+        """Drain one pending refresh without publishing an already superseded scan."""
         try:
-            snapshot = await asyncio.to_thread(
-                collect_snapshot, kube=self.kube, kube_discovery=self._kube_discovery
-            )
-            self.snapshot = snapshot
-            self._last_update = datetime.now().strftime("%H:%M:%S")
-            self._render_rows()
-            lines = [
-                safe_text(f"{report.source}: {report.status} — {report.message or ''}")
-                for report in snapshot.reports
-                if report.status not in ("ok", "disabled")
-            ]
-            self.reports.update(Text("\n".join(lines)))
-        except Exception as error:
-            # Stara migawka zostaje widoczna, ale nie udaje aktualnego odczytu.
-            self.reports.update(
-                Text(
-                    "Błąd odświeżania; zachowano poprzednie dane: "
-                    + safe_text(str(error))
-                )
-            )
+            while not self._shutdown_requested:
+                self._refresh_pending = False
+                try:
+                    snapshot = await asyncio.to_thread(
+                        collect_snapshot,
+                        kube=self.kube,
+                        kube_discovery=self._kube_discovery,
+                    )
+                    if self._shutdown_requested:
+                        break
+                    if self._refresh_pending:
+                        continue
+                    self.snapshot = snapshot
+                    self._last_update = datetime.now().strftime("%H:%M:%S")
+                    self._render_rows()
+                    lines = [
+                        report_text(report)
+                        for report in snapshot.reports
+                        if report.status not in ("ok", "disabled")
+                    ]
+                    self.reports.update(Text("\n".join(lines)))
+                    self.tunnels.update(
+                        Text(
+                            "\n".join(
+                                tunnel_text(tunnel) for tunnel in snapshot.tunnels
+                            )
+                        )
+                    )
+                    self.query_one("#tunnels-panel").display = bool(snapshot.tunnels)
+                except Exception as error:
+                    self.reports.update(
+                        Text(
+                            "Błąd odświeżania; zachowano poprzednie dane: "
+                            + safe_text(str(error))
+                        )
+                    )
+                if not self._refresh_pending:
+                    break
         finally:
             self._refreshing = False
 
@@ -189,6 +244,7 @@ class PortScannerApp(App[None]):
         )
 
     def _render_rows(self, *, sort: bool = False) -> None:
+        """Format changed rows only, preserving filters and selected identity."""
         if not self.table.columns:
             return
         try:
@@ -210,8 +266,10 @@ class PortScannerApp(App[None]):
             for key in self._rows.keys() - rows.keys():
                 self.table.remove_row(key)
             for key, entry in rows.items():
-                cells = entry_cells(entry)
                 previous = self._rows.get(key)
+                if previous == entry:
+                    continue
+                cells = entry_cells(entry)
                 if previous is None:
                     self.table.add_row(*(Text(cell) for cell in cells), key=key)
                 elif previous != entry:
@@ -347,10 +405,17 @@ class PortScannerApp(App[None]):
             self.refresh_bindings()
 
     async def action_quit(self) -> None:
+        """Stop scheduling reads once safe to exit; finish active mutations first."""
         if not self._action_busy and not self._exporting:
+            self._shutdown_requested = True
             self.exit()
         else:
             self.message.update("Poczekaj na zakończenie bieżącej operacji.")
 
+    async def action_quit_global(self) -> None:
+        """Allow Ctrl+Q in the filter while retaining active-operation safeguards."""
+        await self.action_quit()
+
     def on_unmount(self) -> None:
+        self._shutdown_requested = True
         self._kube_discovery.close()
