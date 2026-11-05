@@ -111,6 +111,8 @@ export interface BridgeFailure {
   continuation?: PrepareSuccess
   ok: false
   code:
+    | 'app_closed'
+    | 'internal_error'
     | 'invalid_request'
     | 'busy'
     | 'collection_failed'

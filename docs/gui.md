@@ -26,6 +26,8 @@ instalacja przez pipx i zakres zgodności: [instalacja i pakowanie](release.md).
 - Filtruj tekstowo, przez dokładny port `:8080` lub PID `pid:8421`.
   Filtr tekstowy w trybie desktopowym korzysta ze wspólnego core.
 - Wybierz TCP lub UDP i sortuj tabelę nagłówkami kolumn.
+- Przy ponad 100 wynikach przechodź między stronami tabeli. Filtrowanie i sortowanie
+  obejmują wszystkie wyniki; zmiana filtra lub sortowania wraca na pierwszą stronę.
 - Kliknij port, aby zobaczyć bind, PID, dostępne argumenty procesu,
   mapowania kontenerów, projekt i usługę Compose, tunele oraz kontekst Kubernetes.
 - Użyj „Odśwież”, aby zlecić odczyt, albo pozostaw automatyczne odświeżanie co 2 s.
@@ -34,6 +36,10 @@ instalacja przez pipx i zakres zgodności: [instalacja i pakowanie](release.md).
 Inspektor znajduje się obok tabeli, a przy węższym oknie przechodzi pod nią.
 Interfejs odróżnia pierwszy odczyt, brak wyników, brak dopasowań, dane częściowe
 i błąd. Raport odmowy uprawnień nie oznacza braku portów.
+Przed pierwszą migawką desktop nie pokazuje danych demonstracyjnych. W podglądzie
+przeglądarkowym odświeżanie systemu jest wyłączone. Nieudane wywołanie filtra
+pokazuje błąd przy polu wyszukiwania; poprzednie wyniki pozostają do czasu
+poprawnego zastosowania filtra.
 
 Connectory Cloudflare Tunnel są prezentowane także bez znanych tras: z PID,
 statusem konfiguracji, metryk i liczbą połączeń. Argumenty procesu są tablicą JSON;
@@ -52,10 +58,15 @@ poprzednie mapowania z raportem `partial`; ręczne odświeżenie omija cache.
 
 ## Eksport i operacje
 
-**„Eksportuj widok”** zapisuje widoczne wiersze w aktualnej kolejności jako
+**„Eksportuj widok”** zapisuje wszystkie wyniki filtra ze wszystkich stron,
+w aktualnej kolejności sortowania, jako
 JSON o tym samym kontrakcie `PortEntry[]` co CLI i TUI. Natywny dialog pozwala
 wybrać ścieżkę i potwierdzić zastąpienie pliku. Raporty źródeł i lokalne IP
 nie wchodzą do tej tablicy; przy błędzie źródła wynik może być częściowy.
+Eksporty nie nakładają się na siebie. Zapis jest strumieniowy do pliku tymczasowego
+w katalogu docelowym, a dopiero kompletny plik zastępuje poprzedni atomowo.
+Nieudany zapis pozostawia poprzednią zawartość. Na POSIX nowe pliki mają uprawnienia
+`0600`; zastąpienie pliku nie rozszerza jego uprawnień i usuwa dostęp grupy/innych.
 
 **Kończenie procesu** wymaga weryfikacji i potwierdzenia w dialogu. Cel jest
 przechowywany pod krótkotrwałym, jednorazowym tokenem. Zmiana zaznaczenia
@@ -64,6 +75,8 @@ i reguły. Force jest domyślnie wyłączone. Po timeoutcie dialog pozwala osobn
 potwierdzić eskalację, również gdy proces zamknął port. Na Windows dialog
 informuje o twardym zakończeniu i nie oferuje pozornego łagodnego trybu.
 Anulowanie usuwa zapisany cel, a timer usuwa nieużyte zgody po 120 sekundach.
+Podczas wykonywania operacji Escape nie zamyka dialogu. Zgoda na eskalację,
+która dotrze po usunięciu interfejsu, zostaje unieważniona.
 [Allowlista i reguły operacji](cli.md#kończenie-procesu).
 
 Znane flagi uwierzytelniające są maskowane w argumentach i eksporcie;
@@ -117,3 +130,12 @@ Kontrakt mostka obejmuje typowane odpowiedzi i strukturalne kody błędów
 (`stale_snapshot`, `invalid_filter`, `consent_expired`, `termination_pending`,
 `busy` itd.). Pola raportów `last_success_at`, `age_seconds`, `stale` i `refreshing`
 pozwalają prezentować świeżość bez parsowania komunikatów.
+JavaScript ma dostęp tylko do ośmiu jawnie zarejestrowanych operacji;
+obiekt backendu i jego prywatne atrybuty nie są wystawiane jako `js_api`.
+Nieoczekiwane wyjątki zwracają bezpieczny `internal_error` (eksport: `export_failed`),
+bez tracebacka i szczegółów implementacji. Dotyczy to również `get_app_info`.
+
+Po zamknięciu okna nowe wywołania zwracają `app_closed`. Backend usuwa migawkę
+i zgody, odrzuca wynik trwającego odczytu oraz nie publikuje niedokończonego eksportu.
+Rozpoczęta wcześniej operacja na procesie może się zakończyć, ale nie zachowa
+nowej zgody na eskalację po zamknięciu aplikacji.

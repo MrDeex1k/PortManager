@@ -6,7 +6,7 @@ import sys
 import threading
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from typer.testing import CliRunner
@@ -121,11 +121,22 @@ def test_packaged_assets_resolve_outside_cwd(
     monkeypatch.setattr(gui, "__file__", str(tmp_path / "gui" / "app.py"))
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("PORTSCANNER_GUI_DEV_URL", raising=False)
-    webview = Mock()
+    webview = MagicMock()
     monkeypatch.setattr(gui.importlib, "import_module", Mock(return_value=webview))
     gui.launch()
     assert webview.create_window.call_args.args == ("PortManager", str(entry))
-    assert isinstance(webview.create_window.call_args.kwargs["js_api"], gui.DesktopAPI)
+    assert "js_api" not in webview.create_window.call_args.kwargs
+    exposed = webview.create_window.return_value.expose.call_args.args
+    assert {method.__name__ for method in exposed} == {
+        "get_app_info",
+        "read_snapshot",
+        "filter_ports",
+        "export_ports",
+        "set_kubernetes",
+        "prepare_process",
+        "terminate_process",
+        "cancel_process",
+    }
     webview.start.assert_called_once_with(http_server=True, debug=False, icon=None)
 
 
@@ -133,7 +144,7 @@ def test_vite_launch_uses_existing_loopback_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PORTSCANNER_GUI_DEV_URL", "http://127.0.0.1:5173")
-    webview = Mock()
+    webview = MagicMock()
     monkeypatch.setattr(gui.importlib, "import_module", Mock(return_value=webview))
     gui.launch()
     assert webview.create_window.call_args.args[1] == "http://127.0.0.1:5173/?desktop=1"
@@ -143,7 +154,7 @@ def test_vite_launch_uses_existing_loopback_server(
 
 def test_window_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PORTSCANNER_GUI_DEV_URL", "http://127.0.0.1:5173")
-    webview = Mock()
+    webview = MagicMock()
     webview.start.side_effect = RuntimeError("no display")
     monkeypatch.setattr(gui.importlib, "import_module", Mock(return_value=webview))
     result = CliRunner().invoke(app, ["--gui"])
@@ -154,6 +165,7 @@ def test_window_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_bridge_exposes_live_metadata_and_operations() -> None:
     """The bridge advertises live metadata and only the intended public operations."""
     info = gui.DesktopAPI().get_app_info()
+    assert "mode" in info and "stage" in info
     assert info["mode"] == "desktop" and info["stage"] == "live"
     assert set(name for name in dir(gui.DesktopAPI) if not name.startswith("_")) == {
         "cancel_process",
@@ -255,7 +267,9 @@ def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
     collector = Mock(return_value=_snapshot())
     monkeypatch.setattr(gui, "collect_snapshot", collector)
     api = gui.DesktopAPI()
-    assert api.get_app_info()["kube_enabled"] is False
+    info = api.get_app_info()
+    assert "kube_enabled" in info
+    assert info["kube_enabled"] is False
     first = api.read_snapshot(1)
     assert first["ok"] is True
     assert collector.call_args.kwargs["kube"] is False
@@ -281,7 +295,9 @@ def test_gui_toggle_does_not_race_snapshot_read() -> None:
     try:
         result = api.set_kubernetes(True)
         assert result["ok"] is False and result["busy"] is True
-        assert api.get_app_info()["kube_enabled"] is False
+        info = api.get_app_info()
+        assert "kube_enabled" in info
+        assert info["kube_enabled"] is False
     finally:
         api._scan_lock.release()
         api._close()
@@ -435,4 +451,6 @@ def test_windows_metadata_describes_hard_termination(monkeypatch):
     from types import SimpleNamespace
 
     monkeypatch.setattr(gui, "os", SimpleNamespace(name="nt"))
-    assert gui.DesktopAPI().get_app_info()["termination_mode"] == "hard"
+    info = gui.DesktopAPI().get_app_info()
+    assert "termination_mode" in info
+    assert info["termination_mode"] == "hard"

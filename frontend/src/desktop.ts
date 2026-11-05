@@ -16,7 +16,7 @@ export type ActionResult = ActionSuccess | BridgeFailure
 export type ExportResult = ExportSaved | Cancelled | BridgeFailure
 export interface DesktopBridge {
   set_kubernetes(enabled: boolean): Promise<{ ok: true; kube_enabled: boolean } | BridgeFailure>
-  get_app_info(): Promise<AppInfo>
+  get_app_info(): Promise<AppInfo | BridgeFailure>
   read_snapshot(requestId: number, refreshKube?: boolean): Promise<SnapshotResult>
   filter_ports(generation: number, query: string | null): Promise<FilterResult>
   export_ports(generation: number, ids: string[]): Promise<ExportResult>
@@ -48,12 +48,14 @@ export async function getAppInfo(): Promise<AppInfo> {
     }
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
+    const result = await Promise.race([
       api.get_app_info(),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('Aplikacja desktopowa nie odpowiada.')), 5000)
       }),
     ])
+    if ('ok' in result) throw new Error(result.message)
+    return result
   } finally {
     clearTimeout(timer)
   }

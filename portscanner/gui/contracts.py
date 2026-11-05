@@ -54,6 +54,8 @@ class _FailureOptional(TypedDict, total=False):
 
 
 ErrorCode = Literal[
+    "app_closed",
+    "internal_error",
     "invalid_request",
     "busy",
     "collection_failed",

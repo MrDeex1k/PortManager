@@ -3,6 +3,21 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Poprawki mostka desktopowego i Vue — 2026-11-05
+
+- Jawna lista operacji Python–JS zamiast wystawiania obiektu backendu,
+  bezpieczne błędy oraz odrzucanie wywołań i spóźnionych migawek po zamknięciu.
+- Atomowy, strumieniowy eksport JSON z blokadą równoległych dialogów, ścisłą
+  walidacją generacji i prywatnymi uprawnieniami pliku na POSIX.
+- Rozdzielenie danych demo od pierwszego odczytu desktopowego, obsługa błędów
+  filtra i ochrona ustawienia Kubernetes przed spóźnionymi metadanymi.
+- Blokada Escape podczas operacji na procesie i unieważnianie spóźnionych zgód.
+- Poprawne kopiowanie endpointów IPv6 oraz oznaczenia dostępności dialogów,
+  filtrów i sortowania.
+- Strony po 100 wierszy ograniczające rozmiar DOM dużych list; eksport nadal
+  zapisuje wszystkie wyniki filtra w aktualnej kolejności sortowania.
+- Testy regresyjne granicy mostka i komponentów Vue oraz rozszerzony smoke GUI.
+
 ## Poprawki CLI i TUI — 2026-11-05
 
 - Rozróżnienie ograniczenia informacji o peerze UDP na Windows od niepełnego

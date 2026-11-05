@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 from dataclasses import asdict
+from functools import wraps
 from pathlib import Path
 from unittest.mock import patch
 
@@ -166,6 +167,7 @@ def main() -> None:
     read_snapshot = api.read_snapshot
     forced_refreshes: list[int] = []
 
+    @wraps(read_snapshot)
     def busy_once(request_id: int, refresh_kube: bool = False) -> dict:
         """Simulate one busy refresh response before restoring normal snapshot reads."""
         if refresh_kube:
@@ -333,6 +335,12 @@ def main() -> None:
                 window.evaluate_js(
                     "document.querySelector('[data-testid=kill-confirm]').click()"
                 )
+                assert window.evaluate_js(
+                    "(() => { const dialog = document.querySelector('dialog[open]');"
+                    "const event = new Event('cancel', {cancelable:true});"
+                    "dialog.dispatchEvent(event);"
+                    "return event.defaultPrevented && dialog.open; })()"
+                ), "Escape musi być zablokowany podczas operacji"
                 ticks_before = window.evaluate_js("window.__smokeTicks")
                 time.sleep(0.3)
                 assert window.evaluate_js("window.__smokeTicks") > ticks_before + 4
@@ -379,6 +387,7 @@ def main() -> None:
                             "selection": "ok",
                             "export": "ok",
                             "kill_cancel_confirm": "ok",
+                            "escape_during_termination": "ok",
                             "remote_connector": "ok",
                             "cancel_releases_consent": "ok",
                             "timeout_escalation": "ok"

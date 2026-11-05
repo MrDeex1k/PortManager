@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { dockerKey, formatArguments } from '../src/presentation'
+import { dockerKey, formatArguments, formatEndpoint } from '../src/presentation'
 import { previewPorts } from '../src/preview'
 
 test('argument presentation distinguishes unavailable, empty and token boundaries', () => {
@@ -20,4 +20,12 @@ test('Docker mapping identity includes bind, both ports and protocol', () => {
     { ...item, container_id: 'other' },
   ]
   expect(new Set(mappings.map(dockerKey)).size).toBe(mappings.length)
+})
+
+test('endpoint formatting supports IPv4, IPv6, zone identifiers and wildcard binds', () => {
+  expect(formatEndpoint('127.0.0.1', 80)).toBe('127.0.0.1:80')
+  expect(formatEndpoint('::1', 80)).toBe('[::1]:80')
+  expect(formatEndpoint('fe80::1%en0', 80)).toBe('[fe80::1%en0]:80')
+  expect(formatEndpoint('[::1]', 80)).toBe('[::1]:80')
+  expect(formatEndpoint('*', 80)).toBe('*:80')
 })

@@ -2,7 +2,7 @@
 import { ArrowRight, Box, Copy, Globe2, LockKeyhole, OctagonX, Terminal, X } from 'lucide-vue-next'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { PortRow } from '../types'
-import { formatArguments, dockerKey } from '../presentation'
+import { formatArguments, dockerKey, formatEndpoint } from '../presentation'
 
 const props = defineProps<{ port: PortRow; desktop: boolean; busy: boolean }>()
 defineEmits<{ close: []; requestKill: [] }>()
@@ -18,7 +18,7 @@ watch(
 onBeforeUnmount(() => clearTimeout(resetTimer))
 async function copyAddress() {
   try {
-    await navigator.clipboard.writeText(`${props.port.bind}:${props.port.port}`)
+    await navigator.clipboard.writeText(formatEndpoint(props.port.bind, props.port.port))
     copyStatus.value = 'Skopiowano adres'
   } catch {
     copyStatus.value = 'Nie można skopiować adresu'
@@ -113,7 +113,7 @@ async function copyAddress() {
             {{ item.compose_service || 'bez usługi' }}
           </p>
           <div class="mt-3 flex items-center gap-2 font-mono text-xs">
-            <span>{{ item.host_bind }}:{{ item.host_port }}</span
+            <span>{{ formatEndpoint(item.host_bind, item.host_port) }}</span
             ><ArrowRight :size="12" class="text-accent" /><span
               >{{ item.container_port }}/{{ item.proto }}</span
             >
@@ -134,7 +134,7 @@ async function copyAddress() {
             {{ route.hostname || '(bez hostname)' }}{{ route.path || '' }}
           </p>
           <p class="mt-1 font-mono text-[11px] text-muted">
-            {{ route.host }}:{{ route.port }} · PID {{ route.pid }}
+            {{ formatEndpoint(route.host, route.port) }} · PID {{ route.pid }}
           </p>
         </div>
         <p class="mt-4 text-[11px] leading-relaxed text-muted">
