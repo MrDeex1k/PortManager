@@ -198,6 +198,7 @@ def test_bridge_serializes_snapshot_and_uses_core_filter() -> None:
             "age_seconds": None,
             "stale": False,
             "refreshing": False,
+            "code": None,
         }
     ]
     filtered = api.filter_ports(result["generation"], ":3000")

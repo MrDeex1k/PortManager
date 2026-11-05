@@ -88,17 +88,18 @@ def test_metrics_disable_proxy_redirects_and_bound_response(
     response.__enter__.return_value = response
     response.status = 200
     response.read.return_value = b"cloudflared_tunnel_ha_connections 4"
-    opener = Mock()
-    opener.open.return_value = response
-    builder = Mock(return_value=opener)
-    monkeypatch.setattr(cf, "build_opener", builder)
+    connection = Mock()
+    connection.getresponse.return_value = response
+    builder = Mock(return_value=connection)
+    sock = Mock()
+    monkeypatch.setattr(cf, "HTTPConnection", builder)
+    monkeypatch.setattr(cf.socket, "socket", Mock(return_value=sock))
+    dns = Mock(side_effect=AssertionError("No DNS lookup"))
+    monkeypatch.setattr(cf.socket, "getaddrinfo", dns)
     assert cf.read_metrics("::1", 20241, timeout=0.5) == 4
-    opener.open.assert_called_once_with("http://[::1]:20241/metrics", timeout=0.5)
-    assert builder.call_args.args[0].proxies == {}
-    assert (
-        builder.call_args.args[1].redirect_request(None, None, 302, None, None, None)
-        is None
-    )
+    sock.connect.assert_called_once_with(("::1", 20241))
+    connection.request.assert_called_once_with("GET", "/metrics")
+    dns.assert_not_called()
     response.read.assert_called_once_with(1024 * 1024 + 1)
     response.__exit__.assert_called_once()
 
@@ -108,7 +109,7 @@ def test_non_loopback_metrics_never_open_http(
     monkeypatch: pytest.MonkeyPatch, host: str
 ) -> None:
     builder = Mock()
-    monkeypatch.setattr(cf, "build_opener", builder)
+    monkeypatch.setattr(cf, "HTTPConnection", builder)
     with pytest.raises(ValueError):
         cf.read_metrics(host, 20241)
     builder.assert_not_called()
@@ -134,6 +135,7 @@ def connector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Mock:
         ],
     }
     process.is_running.return_value = True
+    process.environ.return_value = {}
     process.net_connections.return_value = [
         SimpleNamespace(
             status=psutil.CONN_LISTEN, laddr=SimpleNamespace(ip="127.0.0.1", port=20243)
@@ -285,8 +287,11 @@ def test_metrics_share_one_budget_across_endpoint_attempts(
 
     read = Mock(side_effect=attempt)
     monkeypatch.setattr(cf, "read_metrics", read)
-    result = cf._metrics_for(connector, timeout=3.0)
-    assert result == (("ok", 4) if succeed else ("error", None))
+    if succeed:
+        assert cf._metrics_for(connector, timeout=3.0) == ("ok", 4)
+    else:
+        with pytest.raises(cf.DiscoveryError, match="timeout"):
+            cf._metrics_for(connector, timeout=3.0)
     assert [call.kwargs["timeout"] for call in read.call_args_list] == [3.0, 1.0]
     assert now[0] == 103.0
 
@@ -323,3 +328,123 @@ def test_ingress_decodes_only_ipv6_zone_separator():
         [PortEntry("tcp", "fe80::1%en0", 8080)], (), (TunnelInfo(42, routes),)
     )
     assert rows[0].tunnels == routes
+
+
+@pytest.mark.parametrize("service", ["hello-world", "socks-proxy"])
+def test_builtin_service_preserves_other_routes(service):
+    """Non-port builtins never erase unrelated HTTP origins."""
+    routes = cf.parse_ingress(
+        {
+            "ingress": [
+                {"hostname": "app.example", "service": "http://localhost:8080"},
+                {"service": service},
+            ]
+        },
+        42,
+    )
+    assert len(routes) == 1 and routes[0].port == 8080
+
+
+@pytest.mark.parametrize("global_setting", [True, False])
+def test_bastion_does_not_invent_static_origin(global_setting):
+    """Global and per-rule bastion mode both replace the static service."""
+    rule: dict[str, object] = {"service": "http://localhost:8080"}
+    config: dict[str, object] = {"ingress": [rule]}
+    (config if global_setting else rule)["originRequest"] = {"bastionMode": True}
+    assert cf.parse_ingress(config, 42) == ()
+    rule["originRequest"] = {"bastionMode": False}
+    assert cf.parse_ingress(config, 42)[0].port == 8080
+
+
+def test_global_bastion_survives_an_explicit_static_rule():
+    """One rule overriding bastion mode must not clear defaults for later rules."""
+    routes = cf.parse_ingress(
+        {
+            "originRequest": {"bastionMode": True},
+            "ingress": [
+                {
+                    "service": "http://localhost:8080",
+                    "originRequest": {"bastionMode": False},
+                },
+                {"service": "http://localhost:9090"},
+            ],
+        },
+        42,
+    )
+    assert [route.port for route in routes] == [8080]
+
+
+def test_config_filename_is_not_an_admin_command(connector, tmp_path):
+    """A relative config named info remains a flag value before tunnel run."""
+    (tmp_path / "info").write_text("ingress:\n  - service: http://localhost:8080\n")
+    connector.cwd.return_value = str(tmp_path)
+    connector.info["cmdline"] = [
+        "cloudflared",
+        "tunnel",
+        "--config",
+        "info",
+        "run",
+        "demo",
+    ]
+    assert cf.collect_tunnels(metrics=False).items[0].routes[0].port == 8080
+    connector.info["cmdline"] = ["cloudflared", "tunnel", "--logfile", "run", "list"]
+    assert cf.collect_tunnels(metrics=False).items == ()
+
+
+@pytest.mark.parametrize("source", ["config", "env", "env_file"])
+def test_remote_mode_never_exports_local_routes(connector, tmp_path, source):
+    """Token presence is enough; no token file needs to be opened or exported."""
+    if source == "config":
+        (tmp_path / "config.yml").write_text(
+            "token: SYNTHETIC_SECRET\ningress:\n  - service: http://localhost:8080\n"
+        )
+    else:
+        connector.environ.return_value = {
+            "TUNNEL_TOKEN"
+            if source == "env"
+            else "TUNNEL_TOKEN_FILE": "SYNTHETIC_SECRET"
+        }
+    result = cf.collect_tunnels(metrics=False)
+    assert result.items[0].config_status == "remote"
+    assert not result.items[0].routes
+    assert "SYNTHETIC_SECRET" not in str(result)
+
+
+def test_unknown_environment_does_not_claim_local_config(connector):
+    """An inaccessible environment leaves remote-vs-local provenance uncertain."""
+    connector.environ.side_effect = psutil.AccessDenied(42)
+    tunnel = cf.collect_tunnels(metrics=False).items[0]
+    assert not tunnel.routes and tunnel.config_code == "environment_unavailable"
+
+
+def test_quick_origin_without_scheme(connector, monkeypatch):
+    """CLI origin normalization defaults to HTTP without changing ingress rules."""
+    connector.info["cmdline"] = ["cloudflared", "tunnel", "--url", "localhost:3000"]
+    monkeypatch.setattr(cf, "_config", Mock(return_value=({}, "unavailable")))
+    assert cf.collect_tunnels(metrics=False).items[0].routes[0].port == 3000
+
+
+def test_all_connectors_share_one_io_budget(connector, monkeypatch):
+    """Later connectors remain visible even when the first exhausts the I/O budget."""
+    from copy import copy
+
+    second = copy(connector)
+    second.pid = 43
+    monkeypatch.setattr(
+        cf.psutil, "process_iter", Mock(return_value=[connector, second])
+    )
+    now = [0.0]
+    monkeypatch.setattr(cf.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(cf, "_config", Mock(return_value=({}, "explicit")))
+
+    def slow(*args, **kwargs):
+        now[0] += 1.0
+        return "ok", 4
+
+    metrics = Mock(side_effect=slow)
+    monkeypatch.setattr(cf, "_metrics_for", metrics)
+    result = cf.collect_tunnels(timeout=1)
+    assert len(result.items) == 2
+    assert result.items[1].metrics_code == "timeout"
+    assert result.items[1].config_code == "timeout"
+    assert metrics.call_count == 1

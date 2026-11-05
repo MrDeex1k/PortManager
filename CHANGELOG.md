@@ -3,6 +3,20 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Poprawki Docker, Tunnel i Kubernetes — 2026-11-05
+
+- Zachowanie częściowych wyników Docker inspect, obsługa publikacji routed,
+  ścisłe typy bindingów oraz wspólny budżet czasu i limit wyjścia poleceń.
+- Poprawne rozpoznawanie opcji connectorów, usług wbudowanych, bastionMode,
+  tokenów w YAML/środowisku i adresów quick tunnel bez schematu.
+- Ograniczony czasowo odczyt zwykłych plików konfiguracji, przerywanie powolnego
+  HTTP metryk i wspólny budżet I/O wszystkich connectorów.
+- Cache Kubernetes powiązany z rewizją kubeconfig, przypięty kontekst NodePort,
+  zapamiętywanie ręcznego odświeżenia i projekcja potrzebnych pól kubectl.
+- Nadzór nad zaobserwowanymi odłączonymi potomkami na POSIX, anulowalne odczyty
+  potoków oraz jawny opis ograniczeń sprzątania procesów.
+- Strukturalne kody diagnostyczne źródeł i connectorów w kontrakcie Python/TypeScript.
+
 ## Poprawki modeli, odczytów i operacji — 2026-11-05
 
 - Pełne informacje o connectorach Tunnel w GUI, jednoznaczne argumenty procesu

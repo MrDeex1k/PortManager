@@ -27,9 +27,12 @@ przy każdym skanie co 2 s; wolny klaster nie opóźnia lokalnej migawki.
 Pierwszy skan pokazuje „Odczyt klastra w toku”. Wiek danych klastra jest
 widoczny w widoku Kubernetes GUI i podsumowaniu TUI. Błąd odświeżenia
 zachowuje ostatnie dane NodePort ze stanem `partial` i podanym wiekiem.
-Udany pusty odczyt usuwa stare mapowania. Zmiana lokalnych IP lub przełącznika
-unieważnia cache i wynik wcześniejszego żądania. Ręczne „Odśwież” / `r` omija
-cache; żądania klastra nie nakładają się. CLI i domyślne API core nadal
+Udany pusty odczyt usuwa stare mapowania. Zmiana lokalnych IP, przełącznika lub
+rewizji kubeconfig unieważnia cache, ostatni sukces i wynik wcześniejszego żądania.
+Rewizja obejmuje ścieżki, urządzenie/inode, rozmiar oraz czasy modyfikacji i zmiany
+każdego pliku `KUBECONFIG` (domyślnie `~/.kube/config`), bez odczytu sekretów.
+Ręczne „Odśwież” / `r` omija cache; żądanie podczas aktywnego odczytu zostaje
+zapamiętane na kolejny skan. Odczyty nie nakładają się. CLI i domyślne API core nadal
 wykonują jednorazowy odczyt synchroniczny.
 
 ## Odczyt klastra
@@ -41,12 +44,22 @@ surowego stderr. Nie zmienia kontekstu, usług ani innych zasobów klastra.
 `--kube` zezwala na kontakt z API wybranego klastra, także zdalnego.
 Nie są wykonywane próby połączeń z portami usług.
 
-Jedno polecenie `kubectl get services,nodes --all-namespaces --output=json`
-ustala kontekst raz dla obu rodzajów zasobów. Budżet polecenia wynosi 3 s,
-z `--request-timeout` i timeoutem procesu. Kubectl ma zamknięte stdin.
+Najpierw `kubectl config current-context` ustala kontekst. Jedno `kubectl
+--context NAME get services,nodes --all-namespaces` pobiera oba rodzaje zasobów
+z jawnym kontekstem, zapisanym też w mapowaniach NodePort. Kontrola rewizji przed
+i po odczycie odrzuca wynik, jeśli konfiguracja zmieniła się w trakcie.
+Szablon Go przekazuje tylko nazwy, namespace, typ i porty usług oraz adresy węzłów;
+pomija m.in. obrazy, adnotacje i managedFields. Redukcja dotyczy wyjścia kubectl,
+nie rozmiaru odpowiedzi API pobieranej przez samo kubectl.
+Oba polecenia dzielą budżet 3 s, z `--request-timeout` i timeoutem procesu.
+Kubectl ma zamknięte stdin.
 Łączny limit stdout i stderr (4 MiB) jest egzekwowany podczas odbierania.
-Po timeout lub przekroczeniu limitu proces i jego potomkowie są kończone;
-na macOS/Linux używamy osobnej grupy procesów. Windows używa Job Object
+Po każdym odczycie kończymy grupę procesów na macOS/Linux oraz zaobserwowanych
+potomków, także po utworzeniu przez nich nowej sesji. Nadzór POSIX jest best effort:
+proces, który odłączy się i zostanie osierocony między próbkami, może pozostać
+niewykryty. Nie jest to izolacja systemowa. Taki potomek nie blokuje zamknięcia
+wątków czytających stdout/stderr. Oczekiwanie na proces po sygnale jest ograniczone.
+Windows używa Job Object
 z `KILL_ON_JOB_CLOSE`. Proces pomocniczy czeka na przypisanie do joba przed
 uruchomieniem kubectl, więc potomkowie należą do joba także po zakończeniu
 rodzica. Nieudane przypisanie przerywa start kubectl. Konto potrzebuje uprawnień listowania services we wszystkich
@@ -56,6 +69,8 @@ Brak kubectl daje `unavailable`, a błąd konfiguracji, RBAC, timeout lub
 nieprawidłowe dane — `error`. Jeśli pozostały rozpoznane lokalne sesje
 port-forward, raport ma stan `partial`. Błąd Kubernetes nie usuwa pozostałych
 źródeł i nie zmienia kodu CLI, jeśli odczyt listeners się powiódł.
+`SourceReport.code` rozróżnia m.in. `timeout`, `output_limit`, `command_failed`,
+`invalid_data`, `not_found` i `config_changed`, bez ujawniania stderr.
 
 ## NodePort
 
@@ -101,7 +116,8 @@ pusta), także przy wyłączonej fladze. Każde mapowanie zawiera:
 - `namespace`: nazwa lub `null`, gdy nieznana;
 - `resource`: np. `service/web` lub zasób z argumentów;
 - `remote_port`: tekstowy port usługi / cel port-forward;
-- `context`: jawny kontekst z argumentów port-forward lub `null`;
+- `context`: kontekst odczytu NodePort albo jawny kontekst z argumentów
+  port-forward; `null`, jeśli nieznany;
 - `node`: nazwa węzła dla NodePort lub `null`.
 
 Wiersze NodePort grupujemy po protokole, adresie i porcie, zachowując wszystkie

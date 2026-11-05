@@ -193,3 +193,77 @@ def test_manual_refresh_bypasses_ttl(reader: Mock) -> None:
 def test_invalid_interval_is_rejected(value: float) -> None:
     with pytest.raises(ValueError):
         KubeDiscovery(interval=value)
+
+
+def test_refresh_during_read_is_not_lost(reader):
+    """Completion cannot overwrite an explicit refresh requested after read start."""
+    entered, release = threading.Event(), threading.Event()
+
+    def slow(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        return OK
+
+    reader.side_effect = slow
+    discovery = KubeDiscovery(clock=lambda: 1.0)
+    try:
+        discovery.collect((), IPS)
+        assert entered.wait(1)
+        discovery.request_refresh()
+        discovery.collect((), IPS)
+        assert reader.call_count == 1
+        release.set()
+        finish(discovery)
+        discovery.collect((), IPS)
+        finish(discovery)
+        assert reader.call_count == 2
+    finally:
+        release.set()
+        discovery.close()
+
+
+@pytest.mark.parametrize("inflight", [False, True])
+def test_config_revision_discards_success_and_inflight_results(
+    reader, monkeypatch, inflight
+):
+    """A new kubeconfig cannot inherit a cached success from the previous cluster."""
+    stamp = ["A"]
+    monkeypatch.setattr(kube_cache, "config_fingerprint", lambda: tuple(stamp))
+    discovery = KubeDiscovery()
+    entered, release = threading.Event(), threading.Event()
+
+    def slow(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        return OK
+
+    try:
+        if inflight:
+            reader.side_effect = slow
+        discovery.collect((), IPS)
+        if inflight:
+            assert entered.wait(1)
+        else:
+            finish(discovery)
+            assert discovery.collect((), IPS).items == (NODEPORT,)
+        if not inflight:
+            reader.return_value = Collection(
+                (), SourceReport("kubernetes", "error", code="command_failed")
+            )
+        stamp[0] = "B"
+        assert discovery.collect((), IPS).items == ()
+        release.set()
+        finish(discovery)
+        reader.side_effect = None
+        reader.return_value = Collection(
+            (), SourceReport("kubernetes", "error", code="command_failed")
+        )
+        discovery.collect((), IPS)
+        finish(discovery)
+        result = discovery.collect((), IPS)
+        assert result.items == ()
+        assert result.report.last_success_at is None
+        assert result.report.code == "command_failed"
+    finally:
+        release.set()
+        discovery.close()

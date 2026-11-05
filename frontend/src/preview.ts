@@ -181,7 +181,13 @@ export const previewLocalIPs: LocalIP[] = [
   { interface: 'en0', address: '192.168.1.42', family: 'ipv4' },
   { interface: 'lo0', address: '127.0.0.1', family: 'ipv4' },
 ]
-const reportDefaults = { last_success_at: null, age_seconds: null, stale: false, refreshing: false }
+const reportDefaults = {
+  last_success_at: null,
+  age_seconds: null,
+  stale: false,
+  refreshing: false,
+  code: null,
+}
 export const previewReports: SourceReport[] = [
   { ...reportDefaults, source: 'listeners', status: 'ok', message: null },
   {
@@ -241,5 +247,7 @@ export const previewTunnels: TunnelInfo[] = [
     config_status: 'explicit',
     metrics_status: 'ok',
     connections: 4,
+    config_code: null,
+    metrics_code: null,
   },
 ]

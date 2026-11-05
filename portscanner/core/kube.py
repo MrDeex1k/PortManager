@@ -9,6 +9,8 @@ from ipaddress import ip_address
 from pathlib import PureWindowsPath
 from typing import Any
 
+from portscanner.core.discovery_errors import error_code
+from portscanner.core.kube_command import ConfigChangedError
 from portscanner.core.kube_command import run_kubectl as _run
 from portscanner.core.model import (
     Collection,
@@ -214,7 +216,11 @@ def collect_nodeports(
         raise ValueError("Timeout musi być dodatni i skończony")
     try:
         # Jedno wywołanie kubectl ustala konfigurację raz dla obu typów zasobów.
-        items = _items(_run("services,nodes", timeout))
+        output = _run("services,nodes", timeout)
+        items = _items(output)
+        context = json.loads(output).get("context")
+        if context is not None and (not isinstance(context, str) or not context):
+            raise ValueError("Nieprawidłowy kontekst")
         if any(item.get("kind") not in ("Service", "Node") for item in items):
             raise ValueError("Nieprawidłowy rodzaj zasobu Kubernetes")
         mappings = _parse_nodeports(
@@ -222,8 +228,19 @@ def collect_nodeports(
             [i for i in items if i["kind"] == "Node"],
             local_ips,
         )
+        mappings = tuple(
+            replace(
+                entry,
+                kubernetes=tuple(
+                    replace(mapping, context=context) for mapping in entry.kubernetes
+                ),
+            )
+            for entry in mappings
+        )
     except FileNotFoundError:
-        report = SourceReport("kubernetes", "unavailable", "Brak kubectl.")
+        report = SourceReport(
+            "kubernetes", "unavailable", "Brak kubectl.", code="not_found"
+        )
     except (
         subprocess.SubprocessError,
         OSError,
@@ -231,12 +248,18 @@ def collect_nodeports(
         KeyError,
         TypeError,
         AttributeError,
-    ):
+    ) as error:
+        code = (
+            "config_changed"
+            if isinstance(error, ConfigChangedError)
+            else error_code(error)
+        )
         report = SourceReport(
             "kubernetes",
             "error",
-            "Odczyt klastra niedostępny (kubeconfig, uprawnienia, timeout lub dane). "
+            f"Odczyt klastra niedostępny ({code}). "
             "Lokalne sesje port-forward pozostają widoczne.",
+            code=code,
         )
     else:
         return Collection(

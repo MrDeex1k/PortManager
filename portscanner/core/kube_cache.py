@@ -8,6 +8,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from portscanner.core.kube import collect_nodeports, merge_kube
+from portscanner.core.kube_command import config_fingerprint
 from portscanner.core.model import Collection, LocalIP, PortEntry, SourceReport
 
 
@@ -26,8 +27,9 @@ class KubeDiscovery:
         self._interval = interval
         self._clock = clock
         self._lock = threading.Lock()
-        self._key: tuple[LocalIP, ...] | None = None
+        self._key: tuple | None = None
         self._revision = 0
+        self._refresh_revision = 0
         self._latest: Collection[PortEntry] | None = None
         self._success: Collection[PortEntry] | None = None
         self._completed_at = -math.inf
@@ -45,9 +47,11 @@ class KubeDiscovery:
     def request_refresh(self) -> None:
         """Ręczne odświeżenie omija TTL, zachowując dane do końca odczytu."""
         with self._lock:
+            self._refresh_revision += 1
             self._completed_at = -math.inf
 
-    def _invalidate(self, key: tuple[LocalIP, ...] | None) -> None:
+    def _invalidate(self, key: tuple | None) -> None:
+        """Drop cached successes so they cannot cross configuration revisions."""
         self._revision += 1
         self._key = key
         self._latest = self._success = None
@@ -64,17 +68,18 @@ class KubeDiscovery:
         """Start one background read at most; merge current port-forward sessions."""
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("Timeout musi być dodatni i skończony")
+        key = (local_ips, config_fingerprint())
         with self._lock:
             if self._closed:
                 raise RuntimeError("Odczyt Kubernetes jest zamknięty")
-            if self._key != local_ips:
-                self._invalidate(local_ips)
+            if self._key != key:
+                self._invalidate(key)
             now = self._clock()
             if self._worker is None and now - self._completed_at >= self._interval:
                 self._timeout = timeout
                 self._worker = threading.Thread(
                     target=self._read,
-                    args=(local_ips, timeout, self._revision),
+                    args=(local_ips, timeout, self._revision, self._refresh_revision),
                     name="kubernetes-discovery",
                     daemon=True,
                 )
@@ -116,7 +121,11 @@ class KubeDiscovery:
         return merge_kube(entries, result)
 
     def _read(
-        self, local_ips: tuple[LocalIP, ...], timeout: float, revision: int
+        self,
+        local_ips: tuple[LocalIP, ...],
+        timeout: float,
+        revision: int,
+        refresh_revision: int,
     ) -> None:
         """Publish a completed read only if its cache revision is still current."""
         try:
@@ -126,12 +135,19 @@ class KubeDiscovery:
                 (), SourceReport("kubernetes", "error", "Odczyt klastra niedostępny.")
             )
         with self._lock:
+            if self._key is not None and self._key[1] != config_fingerprint():
+                self._invalidate(None)
             if revision == self._revision and not self._closed:
                 self._latest = result
-                self._completed_at = self._clock()
+                completed_at = self._clock()
+                self._completed_at = (
+                    completed_at
+                    if refresh_revision == self._refresh_revision
+                    else -math.inf
+                )
                 if result.report.status == "ok":
                     self._success = result
-                    self._success_at = self._completed_at
+                    self._success_at = completed_at
                     self._success_wall = datetime.now(UTC).isoformat()
             self._worker = None
 
