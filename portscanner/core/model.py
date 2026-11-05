@@ -11,6 +11,10 @@ class SourceReport:
     source: str
     status: Literal["ok", "partial", "unavailable", "error", "disabled"]
     message: str | None = None
+    last_success_at: str | None = None
+    age_seconds: float | None = None
+    stale: bool = False
+    refreshing: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +108,7 @@ class PortEntry:
     tags: tuple[ServiceTag, ...] = ()
     origin: Literal["socket", "docker", "kubernetes"] = "socket"
     kubernetes: tuple[KubernetesPort, ...] = ()
+    udp_peer_status: Literal["not_applicable", "absent", "unknown"] = "not_applicable"
 
 
 @dataclass(frozen=True, slots=True)

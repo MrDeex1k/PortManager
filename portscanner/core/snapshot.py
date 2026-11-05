@@ -1,6 +1,8 @@
 """Łączenie źródeł bez ukrywania błędów i bez automatycznego exit IP."""
 
 import math
+import sys
+from collections import defaultdict
 from dataclasses import replace
 from ipaddress import ip_address
 
@@ -10,7 +12,12 @@ from portscanner.core.ips import LocalIPError, collect_local_ips
 from portscanner.core.k8s import tag_entry
 from portscanner.core.kube import collect_kube
 from portscanner.core.kube_cache import KubeDiscovery
-from portscanner.core.listeners import ListenerScanError, collect_listeners
+from portscanner.core.listeners import (
+    ListenerAccessDenied,
+    ListenerScanError,
+    collect_accessible_listeners,
+    collect_listeners,
+)
 from portscanner.core.model import (
     Collection,
     DockerPort,
@@ -36,8 +43,9 @@ def _docker_matches(entry: PortEntry, mapping: DockerPort) -> bool:
 
 
 def _route_matches(
-    entry: PortEntry, route: TunnelRoute, local_ips: tuple[LocalIP, ...]
+    entry: PortEntry, route: TunnelRoute, local_addresses: set[str]
 ) -> bool:
+    """Match TCP origins to local binds without resolving hostnames through DNS."""
     if entry.proto != "tcp" or entry.port != route.port:
         return False
     if route.host == "localhost":
@@ -50,7 +58,7 @@ def _route_matches(
         return False  # Nazwy origin nie są rozwiązywane przez DNS.
     if str(address) == entry.bind:
         return True
-    if not address.is_loopback and str(address) not in {ip.address for ip in local_ips}:
+    if not address.is_loopback and str(address) not in local_addresses:
         return False
     return entry.bind == "*" or entry.bind == (
         "0.0.0.0" if address.version == 4 else "::"
@@ -68,11 +76,24 @@ def merge_sources(
     Nie przypisujemy PID kontenera do hosta. Dla Dockera wymagamy zgodnego
     bindu (lub zgrupowanej pary wildcard), protokołu i portu.
     """
+    return attach_tunnels(_merge_docker(entries, mappings), tunnels, local_ips)
+
+
+def _merge_docker(
+    entries: list[PortEntry],
+    mappings: tuple[DockerPort, ...],
+) -> tuple[PortEntry, ...]:
+    """Index publications by protocol/port; keep unmatched synthetic rows."""
     enriched = []
+    by_port: dict[tuple[str, int], list[DockerPort]] = defaultdict(list)
+    for mapping in mappings:
+        by_port[mapping.proto, mapping.host_port].append(mapping)
     remaining = set(mappings)
     for entry in entries:
         matched = tuple(
-            mapping for mapping in mappings if _docker_matches(entry, mapping)
+            mapping
+            for mapping in by_port[entry.proto, entry.port]
+            if _docker_matches(entry, mapping)
         )
         remaining.difference_update(matched)
         enriched.append(replace(entry, docker=matched))
@@ -93,7 +114,20 @@ def merge_sources(
                 origin="docker",
             )
         )
-    routes = tuple(route for tunnel in tunnels for route in tunnel.routes)
+    return tuple(enriched)
+
+
+def attach_tunnels(
+    entries: tuple[PortEntry, ...],
+    tunnels: tuple[TunnelInfo, ...],
+    local_ips: tuple[LocalIP, ...],
+) -> tuple[PortEntry, ...]:
+    """Attach relations after all synthetic rows have been created, without DNS."""
+    routes_by_port: dict[int, list[TunnelRoute]] = defaultdict(list)
+    for tunnel in tunnels:
+        for route in tunnel.routes:
+            routes_by_port[route.port].append(route)
+    local_addresses = {ip.address for ip in local_ips}
     return tuple(
         sorted(
             (
@@ -102,12 +136,12 @@ def merge_sources(
                         entry,
                         tunnels=tuple(
                             route
-                            for route in routes
-                            if _route_matches(entry, route, local_ips)
+                            for route in routes_by_port[entry.port]
+                            if _route_matches(entry, route, local_addresses)
                         ),
                     )
                 )
-                for entry in enriched
+                for entry in entries
             ),
             key=lambda entry: (
                 entry.port,
@@ -128,6 +162,7 @@ def collect_snapshot(
     kube: bool = False,
     kube_discovery: KubeDiscovery | None = None,
     timeout: float = 3.0,
+    accessible_fallback: bool = True,
 ) -> Snapshot:
     """Odczytaj lokalne źródła; błędy znajdują się w reports, nie znikają.
 
@@ -140,18 +175,41 @@ def collect_snapshot(
         raise ValueError("Timeout musi być dodatni i skończony")
     reports = []
     try:
-        entries = enrich_processes(collect_listeners())
-        reports.append(SourceReport("listeners", "ok"))
+        try:
+            listeners = collect_listeners()
+            report = SourceReport("listeners", "ok")
+        except ListenerAccessDenied:
+            if sys.platform != "darwin" or not accessible_fallback:
+                raise
+            fallback = collect_accessible_listeners()
+            listeners, report = list(fallback.items), fallback.report
+        if any(entry.udp_peer_status == "unknown" for entry in listeners):
+            report = replace(
+                report,
+                status="partial",
+                message=(
+                    "Windows nie udostępnia informacji o peerze UDP; "
+                    "lista obejmuje również endpointy klientów."
+                ),
+            )
+        entries = enrich_processes(listeners)
+        reports.append(report)
         incomplete = any(
             entry.process is not None and entry.process.status != "ok"
             for entry in entries
         )
         reports.append(SourceReport("processes", "partial" if incomplete else "ok"))
-    except ListenerScanError:
+    except ListenerScanError as error:
         entries = []
         reports.extend(
             (
-                SourceReport("listeners", "error", "Odczyt gniazd niedostępny."),
+                SourceReport(
+                    "listeners",
+                    "unavailable"
+                    if isinstance(error, ListenerAccessDenied)
+                    else "error",
+                    str(error),
+                ),
                 SourceReport("processes", "unavailable"),
             )
         )
@@ -174,7 +232,7 @@ def collect_snapshot(
         else Collection((), SourceReport("tunnels", "disabled"))
     )
     reports.extend((docker_result.report, tunnel_result.report))
-    ports = merge_sources(entries, docker_result.items, tunnel_result.items, local_ips)
+    ports = _merge_docker(entries, docker_result.items)
     if kube:
         result = (
             collect_kube(ports, local_ips, timeout=timeout)
@@ -183,6 +241,7 @@ def collect_snapshot(
         )
         ports = result.items
         reports.append(result.report)
+    ports = attach_tunnels(ports, tunnel_result.items, local_ips)
     return Snapshot(
         ports=ports,
         local_ips=local_ips,

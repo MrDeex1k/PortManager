@@ -258,16 +258,24 @@ def test_export_failure_keeps_app_usable(source: Mock, tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("platform", ["posix", "nt"])
 @pytest.mark.parametrize("cancel_key", ["escape", "enter"])
 def test_kill_cancel_and_default_focus_never_signal(
-    source: Mock, monkeypatch: pytest.MonkeyPatch, cancel_key: str
+    source: Mock, monkeypatch: pytest.MonkeyPatch, cancel_key: str, platform: str
 ) -> None:
+    """Cancellation never signals a process on either platform's dialog layout."""
+    from types import SimpleNamespace
+
+    from portscanner.tui import dialogs
+
+    monkeypatch.setattr(dialogs, "os", SimpleNamespace(name=platform))
     target = KillTarget(43, 100.0, "python", "/bin/python", ("python", "server.py"))
     prepare, terminate = Mock(return_value=target), Mock()
     monkeypatch.setattr(tui, "prepare_kill", prepare)
     monkeypatch.setattr(tui, "terminate_target", terminate)
 
     async def scenario() -> None:
+        """Check focus and platform controls, then cancel without a signal."""
         app = PortScannerApp()
         async with app.run_test() as pilot:
             await app.workers.wait_for_complete()
@@ -275,7 +283,10 @@ def test_kill_cancel_and_default_focus_never_signal(
             await wait_until(lambda: isinstance(app.screen, KillScreen))
             await pilot.pause()
             assert isinstance(app.focused, Button) and app.focused.id == "cancel"
-            assert not app.screen.query_one(Checkbox).value
+            if platform == "posix":
+                assert not app.screen.query_one(Checkbox).value
+            else:
+                assert not list(app.screen.query(Checkbox))
             await pilot.press("q", "j", "k")
             assert isinstance(app.screen, KillScreen)
             await pilot.press(cancel_key)
@@ -292,6 +303,12 @@ def test_kill_cancel_and_default_focus_never_signal(
 def test_kill_confirms_captured_identity_despite_refresh(
     source: Mock, monkeypatch: pytest.MonkeyPatch, force: bool
 ) -> None:
+    """Confirmation uses the captured identity even when refresh removes its row."""
+    from types import SimpleNamespace
+
+    from portscanner.tui import dialogs
+
+    monkeypatch.setattr(dialogs, "os", SimpleNamespace(name="posix"))
     target = KillTarget(
         43,
         100.0,
@@ -429,5 +446,71 @@ def test_kube_is_forwarded_to_worker(source: Mock) -> None:
         async with app.run_test():
             await app.workers.wait_for_complete()
             source.assert_called_with(kube=True, kube_discovery=app._kube_discovery)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+def test_timeout_opens_new_consent_after_port_disappears(source, monkeypatch, confirm):
+    """Timeout requires new consent even after the target row disappears."""
+    from portscanner.core.actions import TerminationPending
+
+    target = KillTarget(43, 100.0, "python", "/bin/python", ("python", "server.py"))
+    pending = TerminationPending(target)
+    resume = Mock(return_value="terminated")
+    monkeypatch.setattr(pending.pending, "resume", resume)
+    monkeypatch.setattr(tui, "prepare_kill", Mock(return_value=target))
+    monkeypatch.setattr(tui, "terminate_target", Mock(side_effect=pending))
+
+    async def scenario():
+        """Keep continuation idle until the second dialog is explicitly answered."""
+        app = PortScannerApp()
+        async with app.run_test(size=(100, 32)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("k")
+            await wait_until(lambda: isinstance(app.screen, KillScreen))
+            await pilot.pause()
+            await pilot.click("#confirm")
+            await wait_until(
+                lambda: isinstance(app.screen, KillScreen) and app.screen.escalation
+            )
+            source.return_value = replace(source.return_value, ports=())
+            app.action_refresh()
+            await wait_until(lambda: not app._refreshing)
+            await pilot.pause()
+            resume.assert_not_called()
+            assert app.screen.focused is not None and app.screen.focused.id == "cancel"
+            await pilot.click("#confirm" if confirm else "#cancel")
+            await app.workers.wait_for_complete()
+            assert resume.call_count == int(confirm)
+
+    asyncio.run(scenario())
+
+
+def test_windows_dialog_explains_hard_termination(source, monkeypatch):
+    """Windows consent explains hard termination and offers no force checkbox."""
+    from types import SimpleNamespace
+
+    from portscanner.tui import dialogs
+
+    monkeypatch.setattr(dialogs, "os", SimpleNamespace(name="nt"))
+    target = KillTarget(43, 100.0, "python", "C:/python.exe", ("python", "server.py"))
+    monkeypatch.setattr(tui, "prepare_kill", Mock(return_value=target))
+
+    async def scenario():
+        """Inspect the Windows dialog and cancel without terminating the target."""
+        app = PortScannerApp()
+        async with app.run_test(size=(100, 32)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("k")
+            await wait_until(lambda: isinstance(app.screen, KillScreen))
+            await pilot.pause()
+            assert not list(app.screen.query("#force"))
+            assert any(
+                "twarde zakończenie" in str(widget.content)
+                for widget in app.screen.query(Static)
+            )
+            await pilot.click("#cancel")
+            await app.workers.wait_for_complete()
 
     asyncio.run(scenario())

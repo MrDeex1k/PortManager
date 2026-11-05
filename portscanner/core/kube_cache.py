@@ -5,6 +5,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from portscanner.core.kube import collect_nodeports, merge_kube
 from portscanner.core.model import Collection, LocalIP, PortEntry, SourceReport
@@ -19,6 +20,7 @@ class KubeDiscovery:
         interval: float = 30.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        """Create an empty cache with a positive TTL measured by the supplied clock."""
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("Interwał musi być dodatni i skończony")
         self._interval = interval
@@ -30,6 +32,7 @@ class KubeDiscovery:
         self._success: Collection[PortEntry] | None = None
         self._completed_at = -math.inf
         self._success_at = 0.0
+        self._success_wall: str | None = None
         self._worker: threading.Thread | None = None
         self._closed = False
         self._timeout = 3.0
@@ -48,6 +51,7 @@ class KubeDiscovery:
         self._revision += 1
         self._key = key
         self._latest = self._success = None
+        self._success_wall = None
         self._completed_at = -math.inf
 
     def collect(
@@ -57,6 +61,7 @@ class KubeDiscovery:
         *,
         timeout: float = 3.0,
     ) -> Collection[PortEntry]:
+        """Start one background read at most; merge current port-forward sessions."""
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("Timeout musi być dodatni i skończony")
         with self._lock:
@@ -91,11 +96,29 @@ class KubeDiscovery:
                 if self._worker is not None:
                     message += " Odświeżanie klastra w tle."
                 result = replace(result, report=replace(result.report, message=message))
+            result = replace(
+                result,
+                report=replace(
+                    result.report,
+                    last_success_at=self._success_wall,
+                    age_seconds=max(0, now - self._success_at)
+                    if self._success
+                    else None,
+                    stale=self._success is not None
+                    and (
+                        self._latest is None
+                        or self._latest.report.status != "ok"
+                        or now - self._success_at >= self._interval
+                    ),
+                    refreshing=self._worker is not None,
+                ),
+            )
         return merge_kube(entries, result)
 
     def _read(
         self, local_ips: tuple[LocalIP, ...], timeout: float, revision: int
     ) -> None:
+        """Publish a completed read only if its cache revision is still current."""
         try:
             result = collect_nodeports(local_ips, timeout=timeout)
         except Exception:
@@ -109,6 +132,7 @@ class KubeDiscovery:
                 if result.report.status == "ok":
                     self._success = result
                     self._success_at = self._completed_at
+                    self._success_wall = datetime.now(UTC).isoformat()
             self._worker = None
 
     def close(self) -> None:

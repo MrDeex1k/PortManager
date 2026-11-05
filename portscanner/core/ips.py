@@ -46,7 +46,7 @@ def collect_local_ips() -> list[LocalIP]:
                         family="ipv4" if parsed.version == 4 else "ipv6",
                     )
                 )
-    except (psutil.Error, OSError) as exc:
+    except (psutil.Error, OSError, RuntimeError) as exc:
         raise LocalIPError("Nie udało się odczytać lokalnych adresów IP.") from exc
     return sorted(
         entries, key=lambda entry: (entry.interface, entry.family, entry.address)

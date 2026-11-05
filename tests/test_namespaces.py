@@ -13,8 +13,9 @@ def test_linux_compares_namespace_inodes(
     inodes: list[int],
     expected: bool,
 ) -> None:
+    """Namespace equality requires matching device and inode, not inode alone."""
     monkeypatch.setattr(namespaces, "sys", SimpleNamespace(platform="linux"))
-    stat = Mock(side_effect=[SimpleNamespace(st_ino=n) for n in inodes])
+    stat = Mock(side_effect=[SimpleNamespace(st_dev=1, st_ino=n) for n in inodes])
     monkeypatch.setattr(Path, "stat", stat)
     assert namespaces.same_namespaces(42) is expected
     assert stat.call_count == len(inodes)
@@ -33,3 +34,17 @@ def test_other_platforms_do_not_read_proc(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(Path, "stat", stat)
     assert namespaces.same_namespaces(42)
     stat.assert_not_called()
+
+
+def test_same_inode_on_different_device_is_not_same_namespace(monkeypatch):
+    monkeypatch.setattr(namespaces, "sys", SimpleNamespace(platform="linux"))
+    stat = Mock(
+        side_effect=[
+            SimpleNamespace(st_dev=1, st_ino=7),
+            SimpleNamespace(st_dev=2, st_ino=7),
+        ]
+    )
+    with monkeypatch.context() as context:
+        context.setattr(Path, "stat", stat)
+        result = namespaces.same_namespaces(42)
+    assert result is False

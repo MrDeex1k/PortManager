@@ -30,3 +30,11 @@ describe('fallback przeglądarkowy', () => {
     expect(filterPreview(rows, 'http')).toEqual(['kube-forward'])
   })
 })
+
+import cases from '../../tests/fixtures/filter_cases.json'
+import type { PortRow } from '../src/types'
+for (const item of cases.cases) {
+  test(`shared Python/TypeScript filter: ${JSON.stringify(item.query)}`, () => {
+    expect(filterPreview(cases.ports as PortRow[], item.query)).toEqual(item.ids)
+  })
+}

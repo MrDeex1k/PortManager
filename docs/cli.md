@@ -99,7 +99,7 @@ do wewnętrznego porównania tożsamości celu. Zakres i ograniczenia maskowania
 Wspólny moduł `core/actions.py` wprowadza następujące reguły:
 
 1. Tylko własny proces użytkownika, z widocznym gniazdem TCP LISTEN lub związanym
-   UDP bez peera. Na POSIX zgodne muszą być realny i efektywny UID; na Windows
+   UDP bez widocznego peera (na Windows stan peera jest nieznany). Na POSIX zgodne muszą być realny i efektywny UID; na Windows
    konto procesu. Na Linuxie wymagane są te same przestrzenie sieci i montowania.
 2. PID 0/1, skaner i jego procesy nadrzędne są chronione. Procesy infrastruktury
    (m.in. docker-proxy, dockerd, containerd, kubelet, kube-apiserver, etcd, k3s)
@@ -116,7 +116,10 @@ Wspólny moduł `core/actions.py` wprowadza następujące reguły:
 4. Po potwierdzeniu ponownie sprawdzane są właściciel, reguły, gniazdo oraz PID,
    czas utworzenia, nazwa, executable i argumenty. Zmiana danych wymaga nowej zgody.
 5. Wysyłany jest `terminate()` i następuje oczekiwanie. Bez `--force` timeout
-   kończy się błędem; sygnał terminate został już wysłany. Z `--force` po timeout
+   otwiera drugie pytanie o zgodę na kill tego samego procesu (domyślnie „nie”).
+   Kontynuacja jest możliwa także po zamknięciu portu i wygasa po 120 sekundach.
+   Odmowa kończy polecenie kodem 1; terminate został już wysłany.
+   Z `--force` po timeout
    tożsamość i reguły są ponownie sprawdzane, potem następuje `kill()` i oczekiwanie.
    Przy eskalacji nie wymagamy nadal otwartego gniazda, bo proces mógł je już zamknąć.
 

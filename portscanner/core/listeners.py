@@ -1,13 +1,14 @@
 """Odczyt lokalnych gniazd, bez prób połączeń i zależności od UI."""
 
 import socket
+import sys
 from dataclasses import replace
 from ipaddress import ip_address
 from typing import Literal
 
 import psutil
 
-from portscanner.core.model import PortEntry
+from portscanner.core.model import Collection, PortEntry, SourceReport
 
 
 class ListenerScanError(RuntimeError):
@@ -21,7 +22,8 @@ class ListenerAccessDenied(ListenerScanError):
 def collect_listeners(*, group_dual_stack: bool = True) -> list[PortEntry]:
     """Zwróć uporządkowaną migawkę TCP LISTEN i UDP bez zdalnego adresu.
 
-    UDP oznacza związane gniazdo bez peera, nie potwierdzoną usługę serwerową.
+    UDP oznacza związane gniazdo bez widocznego peera, nie potwierdzoną usługę.
+    Windows nie udostępnia peera UDP: udp_peer_status jest wtedy unknown.
     Numery portów nie są filtrem: także wysoki port może należeć do serwera.
     Brak dostępu do całej listy zgłasza ListenerAccessDenied zamiast pustej
     listy. Inne błędy systemowe zgłaszają ListenerScanError. Na niektórych
@@ -39,9 +41,14 @@ def collect_listeners(*, group_dual_stack: bool = True) -> list[PortEntry]:
             "Brak uprawnień do odczytu lokalnych gniazd. "
             "Na macOS odczyt systemowy może wymagać uprawnień root."
         ) from exc
-    except (psutil.Error, OSError) as exc:
+    except (psutil.Error, OSError, RuntimeError) as exc:
         raise ListenerScanError("Nie udało się odczytać lokalnych gniazd.") from exc
 
+    return _entries(connections, group_dual_stack=group_dual_stack)
+
+
+def _entries(connections, *, group_dual_stack: bool = True) -> list[PortEntry]:
+    """Normalize TCP listeners and UDP bindings, preserving unknown Windows peers."""
     entries: set[PortEntry] = set()
     for connection in connections:
         if connection.family not in (socket.AF_INET, socket.AF_INET6):
@@ -70,7 +77,14 @@ def collect_listeners(*, group_dual_stack: bool = True) -> list[PortEntry]:
                 proto=proto,
                 bind=bind,
                 port=connection.laddr.port,
-                pid=connection.pid,
+                pid=(
+                    None
+                    if sys.platform == "win32" and connection.pid == 0
+                    else connection.pid
+                ),
+                udp_peer_status=("unknown" if sys.platform == "win32" else "absent")
+                if proto == "udp"
+                else "not_applicable",
             )
         )
 
@@ -98,3 +112,36 @@ def _group_wildcards(entries: set[PortEntry]) -> set[PortEntry]:
             grouped.remove(ipv6)
             grouped.add(replace(entry, bind="*"))
     return grouped
+
+
+def collect_accessible_listeners() -> Collection[PortEntry]:
+    """Best-effort macOS scan after system-wide access denial, never elevate."""
+    from types import SimpleNamespace
+
+    connections = []
+    try:
+        for process in psutil.process_iter():
+            try:
+                for connection in process.net_connections(kind="inet"):
+                    connections.append(
+                        SimpleNamespace(
+                            family=connection.family,
+                            type=connection.type,
+                            laddr=connection.laddr,
+                            raddr=connection.raddr,
+                            status=connection.status,
+                            pid=process.pid,
+                        )
+                    )
+            except (psutil.Error, OSError, RuntimeError):
+                continue
+    except (psutil.Error, OSError, RuntimeError):
+        pass
+    return Collection(
+        tuple(_entries(connections)),
+        SourceReport(
+            "listeners",
+            "partial",
+            "Odmowa odczytu systemowego; pokazano tylko gniazda dostępnych procesów.",
+        ),
+    )

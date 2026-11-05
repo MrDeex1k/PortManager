@@ -1,6 +1,7 @@
 """Zgoda dotyczy konkretnej, ponownie weryfikowanej tożsamości procesu."""
 
 import json
+import os
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -29,13 +30,20 @@ class KillScreen(ModalScreen[bool | None]):
     KillScreen Button { margin: 1 0 0 1; }
     """
 
-    def __init__(self, target: KillTarget) -> None:
+    def __init__(self, target: KillTarget, *, escalation: bool = False) -> None:
         super().__init__()
         self.target = target
+        self.escalation = escalation
 
     def compose(self) -> ComposeResult:
+        """Render redacted identity and platform-specific termination consent."""
         with VerticalScroll():
-            yield Static("Zakończyć proces?", markup=False)
+            yield Static(
+                "Wymusić zakończenie po timeout?"
+                if self.escalation
+                else "Zakończyć proces?",
+                markup=False,
+            )
             yield Static(
                 Text(
                     safe_text(f"PID {self.target.pid}: {self.target.name}")
@@ -46,11 +54,18 @@ class KillScreen(ModalScreen[bool | None]):
                 )
             )
             yield Static(
-                "Proces zostanie ponownie zweryfikowany przed terminate. "
+                "Proces zostanie ponownie zweryfikowany przed sygnałem. "
                 "Operacja dotyczy całego procesu i wszystkich jego portów.",
                 markup=False,
             )
-            yield Checkbox("Po timeout pozwól także na kill (--force)", id="force")
+            if os.name == "nt":
+                yield Static("Windows: terminate oznacza twarde zakończenie procesu.")
+            elif not self.escalation:
+                yield Checkbox("Po timeout pozwól także na kill (--force)", id="force")
+            if self.escalation:
+                yield Static(
+                    "Proces nadal działa po terminate. Zgoda dotyczy teraz kill."
+                )
             with Horizontal():
                 yield Button("Anuluj", id="cancel")
                 yield Button("Zakończ proces", variant="error", id="confirm")
@@ -62,9 +77,14 @@ class KillScreen(ModalScreen[bool | None]):
         self.dismiss(None)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Return force consent only for confirmation; cancellation returns None."""
         event.stop()
         self.dismiss(
-            self.query_one("#force", Checkbox).value
+            (
+                self.query_one("#force", Checkbox).value
+                if not self.escalation and os.name != "nt"
+                else self.escalation
+            )
             if event.button.id == "confirm"
             else None
         )

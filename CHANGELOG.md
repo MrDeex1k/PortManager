@@ -3,6 +3,21 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Poprawki modeli, odczytów i operacji — 2026-11-05
+
+- Pełne informacje o connectorach Tunnel w GUI, jednoznaczne argumenty procesu
+  i klucze mapowań Docker uwzględniające IPv4/IPv6.
+- Generowane kontrakty Python/TypeScript, kody błędów mostka i strukturalna
+  świeżość cache Kubernetes.
+- Izolowanie natywnych błędów psutil, częściowy odczyt dostępnych procesów na macOS,
+  jawnie nieznany peer UDP i normalizacja nieznanego właściciela na Windows.
+- Indeksowane scalanie źródeł, relacje tuneli dla NodePort, normalizacja stref IPv6
+  oraz wspólne przypadki testowe filtrów z obsługą Unicode.
+- Maskowanie sąsiadujących flag sekretów i ponowna zgoda na eskalację po timeoutcie,
+  także po zamknięciu portu. Anulowane i wygasłe zgody usuwają cel z pamięci GUI.
+- Potwierdzenie twardego zakończenia na Windows oraz neutralny wynik zniknięcia
+  zweryfikowanego procesu podczas eskalacji.
+
 ## Zależności — 2026-10-17
 
 - Aktualizacja bezpośrednich i przechodnich zależności Pythona oraz frontendu.

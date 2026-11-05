@@ -122,7 +122,7 @@ Zweryfikowana platforma: **macOS ARM64**. Instalacja odbywa się ze źródeł lu
 
 Dla Kubernetes dodaj `--kube` do wybranego trybu; w GUI możesz też użyć przełącznika. Instrukcje instalacji przez pipx i tworzenia skrótu `PortManager.app`: [instalacja](docs/release.md) · [GUI](docs/gui.md).
 
-> **Widoczność zależy od uprawnień systemu.** Na macOS pełny odczyt gniazd może wymagać root; aplikacja nie podnosi uprawnień automatycznie. Sprawdzaj raporty źródeł — pusta tabela przy błędzie odczytu nie oznacza wolnych portów. CLI sygnalizuje błąd podstawowego odczytu kodem `1`, także przy częściowym JSON.
+> **Widoczność zależy od uprawnień systemu.** Na macOS pełny odczyt gniazd może wymagać root; aplikacja nie podnosi uprawnień automatycznie. Po odmowie na macOS pokazuje gniazda dostępnych procesów z raportem `partial`. Sprawdzaj raporty źródeł — pusta tabela przy błędzie odczytu nie oznacza wolnych portów. CLI sygnalizuje błąd podstawowego odczytu kodem `1`, także przy częściowym JSON.
 
 <details>
 <summary><strong>Chcę tylko obejrzeć GUI, bez odczytu systemu</strong></summary>
@@ -196,7 +196,7 @@ bun run build
 <details>
 <summary><strong>Jak interpretować wyniki</strong></summary>
 
-- TCP oznacza gniazdo w stanie LISTEN; UDP — związane gniazdo bez zdalnego adresu, bez potwierdzenia odpowiedzi serwera.
+- TCP oznacza gniazdo w stanie LISTEN; UDP — związane gniazdo bez widocznego zdalnego adresu, bez potwierdzenia odpowiedzi serwera. Na Windows peer UDP jest nieznany, więc lista może zawierać także klientów.
 - Publikacja Docker i konfiguracja NodePort nie potwierdzają istnienia gniazda hosta ani dostępności usługi.
 - Reguła tunelu nie potwierdza publicznej dostępności hostname; tagi K8s są heurystyką.
 - Argumenty procesów mogą być niepełne. Maskowanie obejmuje znane flagi, nie dowolne sekrety w treści argumentów.

@@ -2,6 +2,7 @@
 
 import os
 import socket
+import sys
 from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -14,18 +15,27 @@ from portscanner.core.model import PortEntry
 from portscanner.core.procs import enrich_processes
 
 
+@pytest.mark.parametrize(
+    "family,host", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
+)
 @pytest.mark.parametrize("system_wide", [False, True], ids=["own-process", "system"])
-def test_real_local_sockets(monkeypatch: pytest.MonkeyPatch, system_wide: bool) -> None:
+def test_real_local_sockets(
+    monkeypatch: pytest.MonkeyPatch, system_wide: bool, family: int, host: str
+) -> None:
+    """Observe owned TCP/UDP sockets and platform-specific peer visibility."""
     with ExitStack() as stack:
-        tcp = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
-        udp = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
-        udp_client = stack.enter_context(
-            socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        )
-        tcp.bind(("127.0.0.1", 0))
+        tcp = stack.enter_context(socket.socket(family, socket.SOCK_STREAM))
+        udp = stack.enter_context(socket.socket(family, socket.SOCK_DGRAM))
+        udp_client = stack.enter_context(socket.socket(family, socket.SOCK_DGRAM))
+        try:
+            tcp.bind((host, 0))
+        except OSError as exc:
+            if family == socket.AF_INET6 and exc.errno in (49, 99, 10049):
+                pytest.skip("IPv6 loopback niedostępny")
+            raise
         tcp.listen(1)
-        udp.bind(("127.0.0.1", 0))
-        udp_client.bind(("127.0.0.1", 0))
+        udp.bind((host, 0))
+        udp_client.bind((host, 0))
         udp_client.connect(udp.getsockname())
 
         if not system_wide:
@@ -53,16 +63,28 @@ def test_real_local_sockets(monkeypatch: pytest.MonkeyPatch, system_wide: bool) 
                 pytest.skip("Odczyt systemowy wymaga dodatkowych uprawnień OS")
             raise
 
+        assert PortEntry("tcp", host, tcp.getsockname()[1], os.getpid()) in entries
         assert (
-            PortEntry("tcp", "127.0.0.1", tcp.getsockname()[1], os.getpid()) in entries
+            PortEntry(
+                "udp",
+                host,
+                udp.getsockname()[1],
+                os.getpid(),
+                udp_peer_status="unknown" if sys.platform == "win32" else "absent",
+            )
+            in entries
         )
-        assert (
-            PortEntry("udp", "127.0.0.1", udp.getsockname()[1], os.getpid()) in entries
-        )
-        assert not any(
-            entry.proto == "udp" and entry.port == udp_client.getsockname()[1]
+        clients = [
+            entry
             for entry in entries
-        )
+            if entry.proto == "udp" and entry.port == udp_client.getsockname()[1]
+        ]
+        if sys.platform == "win32":
+            assert clients and all(
+                entry.udp_peer_status == "unknown" for entry in clients
+            )
+        else:
+            assert not clients
         own_entries = [entry for entry in entries if entry.pid == os.getpid()]
         enriched = enrich_processes(own_entries)
         assert enriched

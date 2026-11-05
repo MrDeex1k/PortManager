@@ -5,10 +5,12 @@ from pathlib import Path
 
 
 def same_namespaces(pid: int) -> bool:
+    """Compare network and mount namespace device/inode pairs on Linux."""
     if sys.platform != "linux":
         return True
-    return all(
-        Path(f"/proc/{pid}/ns/{kind}").stat().st_ino
-        == Path(f"/proc/self/ns/{kind}").stat().st_ino
-        for kind in ("net", "mnt")
-    )
+    for kind in ("net", "mnt"):
+        target = Path(f"/proc/{pid}/ns/{kind}").stat()
+        current = Path(f"/proc/self/ns/{kind}").stat()
+        if (target.st_dev, target.st_ino) != (current.st_dev, current.st_ino):
+            return False
+    return True

@@ -152,9 +152,11 @@ def test_window_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_bridge_exposes_live_metadata_and_operations() -> None:
+    """The bridge advertises live metadata and only the intended public operations."""
     info = gui.DesktopAPI().get_app_info()
     assert info["mode"] == "desktop" and info["stage"] == "live"
     assert set(name for name in dir(gui.DesktopAPI) if not name.startswith("_")) == {
+        "cancel_process",
         "export_ports",
         "filter_ports",
         "get_app_info",
@@ -166,6 +168,7 @@ def test_bridge_exposes_live_metadata_and_operations() -> None:
 
 
 def test_bridge_serializes_snapshot_and_uses_core_filter() -> None:
+    """Snapshots retain core fields and use the shared filter implementation."""
     api = gui.DesktopAPI(
         collector=lambda: _snapshot(
             PortEntry(
@@ -181,6 +184,7 @@ def test_bridge_serializes_snapshot_and_uses_core_filter() -> None:
     result = api.read_snapshot(7)
     assert result["ok"] is True
     assert result["request_id"] == 7
+    assert result["ports"][0]["process"] is not None
     assert result["ports"][0]["process"]["cmdline"] == ("bun", "dev")
     assert result["local_ips"] == [
         {"interface": "lo0", "address": "127.0.0.1", "family": "ipv4"}
@@ -190,6 +194,10 @@ def test_bridge_serializes_snapshot_and_uses_core_filter() -> None:
             "source": "processes",
             "status": "partial",
             "message": "Część danych niedostępna.",
+            "last_success_at": None,
+            "age_seconds": None,
+            "stale": False,
+            "refreshing": False,
         }
     ]
     filtered = api.filter_ports(result["generation"], ":3000")
@@ -215,7 +223,13 @@ def test_bridge_does_not_overlap_slow_reads() -> None:
     worker = threading.Thread(target=api.read_snapshot, args=(1,))
     worker.start()
     assert started.wait(timeout=1)
-    assert api.read_snapshot(2) == {"ok": False, "busy": True, "request_id": 2}
+    assert api.read_snapshot(2) == {
+        "ok": False,
+        "busy": True,
+        "request_id": 2,
+        "code": "busy",
+        "message": "Odświeżanie jest w toku.",
+    }
     release.set()
     worker.join(timeout=1)
 
@@ -228,6 +242,7 @@ def test_bridge_reports_collection_error_without_details() -> None:
     assert result == {
         "ok": False,
         "message": "Nie udało się zebrać migawki systemu.",
+        "code": "collection_failed",
         "request_id": 1,
     }
 
@@ -235,19 +250,23 @@ def test_bridge_reports_collection_error_without_details() -> None:
 def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Changing Kubernetes invalidates snapshots and updates discovery."""
     collector = Mock(return_value=_snapshot())
     monkeypatch.setattr(gui, "collect_snapshot", collector)
     api = gui.DesktopAPI()
     assert api.get_app_info()["kube_enabled"] is False
     first = api.read_snapshot(1)
+    assert first["ok"] is True
     assert collector.call_args.kwargs["kube"] is False
     assert api.set_kubernetes(True) == {"ok": True, "kube_enabled": True}
     assert api.filter_ports(first["generation"], None)["ok"] is False
     enabled = api.read_snapshot(2)
+    assert enabled["ok"] is True
     assert enabled["kube_enabled"] is True
     collector.assert_called_with(kube=True, kube_discovery=api._kube_discovery)
     assert api.set_kubernetes(False)["ok"] is True
-    assert api.read_snapshot(3)["kube_enabled"] is False
+    disabled = api.read_snapshot(3)
+    assert disabled["ok"] is True and disabled["kube_enabled"] is False
     assert collector.call_args.kwargs["kube"] is False
     invalid: Any = "true"
     assert api.set_kubernetes(invalid)["ok"] is False
@@ -255,10 +274,12 @@ def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
 
 
 def test_gui_toggle_does_not_race_snapshot_read() -> None:
+    """An in-flight snapshot prevents concurrent changes to Kubernetes settings."""
     api = gui.DesktopAPI()
     api._scan_lock.acquire()
     try:
-        assert api.set_kubernetes(True)["busy"] is True
+        result = api.set_kubernetes(True)
+        assert result["ok"] is False and result["busy"] is True
         assert api.get_app_info()["kube_enabled"] is False
     finally:
         api._scan_lock.release()
@@ -270,6 +291,7 @@ def test_export_preserves_visible_order_and_cli_contract(tmp_path: Path) -> None
     second = PortEntry("udp", "*", 5353)
     api = gui.DesktopAPI(collector=lambda: _snapshot(first, second))
     snapshot = api.read_snapshot(1)
+    assert snapshot["ok"] is True
     output = tmp_path / "ports.json"
     window = Mock()
     window.create_file_dialog.return_value = (str(output),)
@@ -290,6 +312,7 @@ def test_kill_consent_is_redacted_fixed_and_single_use() -> None:
     terminate = Mock()
     api = gui.DesktopAPI(prepare=lambda pid: target, terminate=terminate)
     prepared = api.prepare_process(42)
+    assert prepared["ok"] is True
     assert prepared["target"]["cmdline"] == ["bun", "--token", "***"]
     assert api.terminate_process(prepared["token"], True)["ok"] is True
     terminate.assert_called_once_with(target, force=True, timeout=3.0)
@@ -301,7 +324,11 @@ def test_kill_policy_error_is_visible() -> None:
         raise ProcessActionError("Proces jest chroniony.")
 
     result = gui.DesktopAPI(prepare=deny).prepare_process(42)
-    assert result == {"ok": False, "message": "Proces jest chroniony."}
+    assert result == {
+        "ok": False,
+        "message": "Proces jest chroniony.",
+        "code": "process_rejected",
+    }
 
 
 def test_terminate_error_is_visible_and_consent_is_consumed() -> None:
@@ -312,10 +339,12 @@ def test_terminate_error_is_visible_and_consent_is_consumed() -> None:
 
     api = gui.DesktopAPI(prepare=lambda pid: target, terminate=timeout)
     prepared = api.prepare_process(42)
+    assert prepared["ok"] is True
     result = api.terminate_process(prepared["token"], False)
     assert result == {
         "ok": False,
         "message": "Proces nie zakończył się przed timeoutem.",
+        "code": "process_rejected",
     }
     assert api.terminate_process(prepared["token"], False)["ok"] is False
 
@@ -323,9 +352,86 @@ def test_terminate_error_is_visible_and_consent_is_consumed() -> None:
 def test_bridge_rejects_malformed_action_arguments() -> None:
     api = gui.DesktopAPI(collector=lambda: _snapshot())
     snapshot = api.read_snapshot(1)
+    assert snapshot["ok"] is True
     malformed_ids: Any = [1]
     malformed_token: Any = []
     malformed_force: Any = "false"
     assert api.export_ports(snapshot["generation"], malformed_ids)["ok"] is False
     assert api.terminate_process(malformed_token, False)["ok"] is False
     assert api.terminate_process("token", malformed_force)["ok"] is False
+
+
+def test_remote_connector_metadata_is_not_lost():
+    from dataclasses import replace
+
+    from portscanner.core.model import TunnelInfo
+
+    connector = TunnelInfo(
+        42, config_status="remote", metrics_status="ok", connections=4
+    )
+    api = gui.DesktopAPI(collector=lambda: replace(_snapshot(), tunnels=(connector,)))
+    result = api.read_snapshot(1)
+    assert result["ok"] is True
+    assert result["ports"] == []
+    assert result["tunnels"][0]["connections"] == 4
+    assert result["tunnels"][0]["config_status"] == "remote"
+
+
+def test_cancel_and_expiry_release_raw_targets(monkeypatch):
+    """Cancellation, expiry and shutdown release retained identities and timer state."""
+    now = Mock(return_value=10.0)
+    monkeypatch.setattr(gui.time, "monotonic", now)
+    timer = Mock()
+    monkeypatch.setattr(gui.threading, "Timer", timer)
+    target = KillTarget(42, 1.5, "bun", "/bin/bun", ("bun", "--token", "secret"))
+    api = gui.DesktopAPI(prepare=lambda pid: target)
+    prepared = api.prepare_process(42)
+    assert prepared["ok"] is True
+    timer.assert_called_with(120.0, api._expire_targets)
+    timer.return_value.start.assert_called_once()
+    api.cancel_process(prepared["token"])
+    assert not api._targets
+    prepared = api.prepare_process(42)
+    assert prepared["ok"] is True
+    now.return_value = 130.0
+    api._expire_targets()
+    assert not api._targets
+    assert api.terminate_process(prepared["token"])["ok"] is False
+    api.prepare_process(42)
+    api._close()
+    assert not api._targets and api._expiry_timer is None
+
+
+def test_timeout_returns_new_single_use_consent(monkeypatch):
+    from portscanner.core.actions import TerminationPending
+
+    target = KillTarget(42, 1.5, "bun", "/bin/bun", ("bun", "dev"))
+    pending = TerminationPending(target)
+    resume = Mock(return_value="already_exited")
+    monkeypatch.setattr(pending.pending, "resume", resume)
+    terminate = Mock(side_effect=pending)
+    api = gui.DesktopAPI(prepare=lambda pid: target, terminate=terminate)
+    try:
+        initial = api.prepare_process(42)
+        assert initial["ok"] is True
+        result = api.terminate_process(initial["token"])
+        assert result["ok"] is False
+        assert result["code"] == "termination_pending"
+        continuation = result["continuation"]
+        assert continuation["token"] != initial["token"]
+        assert continuation["escalation"] is True
+        resume.assert_not_called()
+        assert api.terminate_process(initial["token"], True)["ok"] is False
+        result = api.terminate_process(continuation["token"], True)
+        assert result == {"ok": True, "pid": 42, "status": "already_exited"}
+        resume.assert_called_once_with(timeout=3.0)
+        assert api.terminate_process(continuation["token"], True)["ok"] is False
+    finally:
+        api._close()
+
+
+def test_windows_metadata_describes_hard_termination(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(gui, "os", SimpleNamespace(name="nt"))
+    assert gui.DesktopAPI().get_app_info()["termination_mode"] == "hard"

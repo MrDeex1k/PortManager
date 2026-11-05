@@ -74,7 +74,12 @@ def parse_ingress(config: object, pid: int) -> tuple[TunnelRoute, ...]:
             path is not None and not isinstance(path, str)
         ):
             raise ValueError("Nieprawidłowe dopasowanie reguły")
-        routes.append(TunnelRoute(pid, hostname, parsed.hostname, port, path))
+        host = parsed.hostname
+        # URL zone separators are encoded as %25; OS addresses use %.
+        # Decode only IPv6 zones, never arbitrary origin hostnames.
+        if ":" in host and "%25" in host:
+            host = host.replace("%25", "%", 1)
+        routes.append(TunnelRoute(pid, hostname, host, port, path))
     return tuple(routes)
 
 
