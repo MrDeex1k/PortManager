@@ -20,6 +20,7 @@ from portscanner.core.model import (
     ServiceTag,
     Snapshot,
     SourceReport,
+    TunnelInfo,
     TunnelRoute,
 )
 
@@ -105,6 +106,17 @@ def test_help_never_scans(source: Mock) -> None:
         ["--cli", "--timeout", "nan"],
         ["--cli", "--timeout", "inf"],
         ["--cli", "--timeout", "0"],
+        ["--cli", "--timeout", "1e300"],
+        ["--cli", "--timeout", "3601"],
+        ["--cli", "--json", "--json-snapshot"],
+        ["--cli", "--json-snapshot", "--exit-ip"],
+        ["--cli", "--json-snapshot", "--kill", "42"],
+        ["--cli", "--columns", ""],
+        ["--cli", "--columns", "PID,PID"],
+        ["--cli", "--columns", "not-a-column"],
+        ["--cli", "--json", "--columns", "PID"],
+        ["--cli", "--json-snapshot", "--columns", "PID"],
+        ["--cli", "--kill", "42", "--columns", "PID"],
     ],
 )
 def test_invalid_options_fail_before_read_or_action(
@@ -290,3 +302,129 @@ def test_timeout_requires_a_second_consent(action, monkeypatch, answer, called):
     assert result.exit_code == (0 if called else 1)
     assert resume.call_count == int(called)
     assert "Wymusić" in result.output
+
+
+@pytest.mark.parametrize("mode", [[], ["--gui"]])
+@pytest.mark.parametrize(
+    "options", [["--timeout", "3"], ["--json-snapshot"], ["--columns", "PORT"]]
+)
+def test_cli_only_options_are_rejected_even_at_default_values(
+    source, monkeypatch, mode, options
+):
+    """Explicit defaults cannot silently select TUI or GUI and discard options."""
+    from portscanner.tui import PortScannerApp
+
+    tui_launch, gui_launch = Mock(), Mock()
+    monkeypatch.setattr(PortScannerApp, "run", tui_launch)
+    monkeypatch.setattr("portscanner.gui.launch", gui_launch)
+    result = runner.invoke(cli.app, [*mode, *options])
+    assert result.exit_code == 2
+    source.assert_not_called()
+    tui_launch.assert_not_called()
+    gui_launch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "status,code,exit_code",
+    [
+        ("partial", "udp_peer_unknown", 0),
+        ("partial", None, 1),
+        ("partial", "access_denied", 1),
+        ("error", "udp_peer_unknown", 1),
+    ],
+)
+def test_only_udp_peer_limitation_allows_success(source, status, code, exit_code):
+    """Metadata limitations do not masquerade as incomplete listener enumeration."""
+    source.return_value = replace(
+        source.return_value, reports=(SourceReport("listeners", status, code=code),)
+    )
+    result = runner.invoke(cli.app, ["--cli", "--json", "--filter", "tcp"])
+    assert result.exit_code == exit_code
+    assert json.loads(result.stdout)
+    assert "listeners: " + status in result.stderr
+    if code:
+        assert f"[{code}]" in result.stderr
+
+
+def test_connectors_and_codes_are_visible_without_port_matches(source):
+    """A token connector and a failed connector survive an empty port filter."""
+    source.return_value = replace(
+        source.return_value,
+        tunnels=(
+            TunnelInfo(
+                998877, config_status="remote", metrics_status="ok", connections=4
+            ),
+            TunnelInfo(
+                998878,
+                config_status="error",
+                config_code="unsafe_file",
+                metrics_status="error",
+                metrics_code="timeout",
+            ),
+        ),
+        reports=(
+            SourceReport("listeners", "ok"),
+            SourceReport(
+                "kubernetes",
+                "error",
+                "Odczyt klastra niedostępny.",
+                code="config_changed",
+            ),
+        ),
+    )
+    result = runner.invoke(
+        cli.app,
+        ["--cli", "--filter", "no-match", "--no-color"],
+        env={"COLUMNS": "200"},
+    )
+    assert result.exit_code == 0
+    assert "PID 998877" in result.stdout and "połączenia=4" in result.stdout
+    assert "config=remote" in result.stdout
+    assert "unsafe_file" in result.stdout and "timeout" in result.stdout
+    assert "config_changed" in result.stderr
+
+
+def test_snapshot_json_preserves_metadata_when_ports_are_filtered(source):
+    """The opt-in object export retains diagnostics without altering the list mode."""
+    source.return_value = replace(
+        source.return_value,
+        tunnels=(
+            TunnelInfo(998877, config_status="remote", metrics_status="disabled"),
+        ),
+        reports=(
+            SourceReport("listeners", "ok"),
+            SourceReport("docker", "error", code="timeout"),
+        ),
+    )
+    result = runner.invoke(
+        cli.app, ["--cli", "--json-snapshot", "--filter", "no-match"]
+    )
+    data = json.loads(result.stdout)
+    assert result.exit_code == 0
+    assert data["ports"] == []
+    assert data["tunnels"][0]["pid"] == 998877
+    assert data["reports"][1]["code"] == "timeout"
+    assert data["local_ips"][0]["address"] == "127.0.0.1"
+    assert "\x1b" not in result.stdout
+    assert "timeout" in result.stderr
+
+
+def test_table_columns_can_be_selected_in_order(source):
+    """A compact table omits unused integrations without changing its data source."""
+    result = runner.invoke(
+        cli.app, ["--cli", "--columns", "pid,port,proc", "--no-color"]
+    )
+    assert result.exit_code == 0
+    assert (
+        result.stdout.index("PID")
+        < result.stdout.index("PORT")
+        < result.stdout.index("PROC")
+    )
+    assert "KUBERNETES" not in result.stdout and "DOCKER" not in result.stdout
+    assert "8080" in result.stdout and "python" in result.stdout
+
+
+def test_explicit_default_timeout_remains_valid_for_cli(source):
+    result = runner.invoke(cli.app, ["--cli", "--json", "--timeout", "3"])
+    assert result.exit_code == 0
+    assert source.call_args.kwargs["timeout"] == 3.0

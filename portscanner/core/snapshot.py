@@ -183,10 +183,13 @@ def collect_snapshot(
                 raise
             fallback = collect_accessible_listeners()
             listeners, report = list(fallback.items), fallback.report
-        if any(entry.udp_peer_status == "unknown" for entry in listeners):
+        if report.status == "ok" and any(
+            entry.udp_peer_status == "unknown" for entry in listeners
+        ):
             report = replace(
                 report,
                 status="partial",
+                code="udp_peer_unknown",
                 message=(
                     "Windows nie udostępnia informacji o peerze UDP; "
                     "lista obejmuje również endpointy klientów."

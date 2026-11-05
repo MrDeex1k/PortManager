@@ -3,6 +3,19 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Poprawki CLI i TUI — 2026-11-05
+
+- Rozróżnienie ograniczenia informacji o peerze UDP na Windows od niepełnego
+  odczytu gniazd w kodzie wyjścia CLI.
+- Prezentacja wszystkich connectorów Cloudflare Tunnel i kodów diagnostycznych
+  w obu interfejsach terminalowych.
+- Opcje `--json-snapshot` i `--columns`, walidacja zakresu timeoutu oraz jawnych
+  opcji równych wartości domyślnej.
+- Strumieniowy eksport JSON przy zachowaniu dotychczasowego formatu listy portów.
+- Przewijane klawiaturą panele TUI i pełny widok diagnostyki pod `d`.
+- Zapamiętywanie odświeżenia podczas skanu, również po zakończeniu procesu,
+  działające Ctrl+Q w filtrze oraz pomijanie formatowania niezmienionych wierszy.
+
 ## Poprawki Docker, Tunnel i Kubernetes — 2026-11-05
 
 - Zachowanie częściowych wyników Docker inspect, obsługa publikacji routed,

@@ -2,7 +2,7 @@
 
 import unicodedata
 
-from portscanner.core.model import PortEntry
+from portscanner.core.model import PortEntry, SourceReport, TunnelInfo
 
 COLUMNS = (
     "PROTO",
@@ -21,6 +21,29 @@ COLUMNS = (
 def safe_text(text: str) -> str:
     return "".join(
         char if unicodedata.category(char) not in ("Cc", "Cf") else "?" for char in text
+    )
+
+
+def report_text(report: SourceReport) -> str:
+    """Expose safe reason codes consistently in both terminal interfaces."""
+    code = f" [{report.code}]" if report.code else ""
+    message = report.message or (
+        "Niepełne lub niedostępne dane źródła."
+        if report.status not in ("ok", "disabled")
+        else ""
+    )
+    return safe_text(f"{report.source}: {report.status}{code} — {message}")
+
+
+def tunnel_text(tunnel: TunnelInfo) -> str:
+    """Describe every connector, including remote configs and unknown metrics."""
+    config_code = f" [{tunnel.config_code}]" if tunnel.config_code else ""
+    metrics_code = f" [{tunnel.metrics_code}]" if tunnel.metrics_code else ""
+    connections = "?" if tunnel.connections is None else str(tunnel.connections)
+    return safe_text(
+        f"PID {tunnel.pid}: config={tunnel.config_status}{config_code}; "
+        f"metryki={tunnel.metrics_status}{metrics_code}; "
+        f"połączenia={connections}; reguły={len(tunnel.routes)}"
     )
 
 

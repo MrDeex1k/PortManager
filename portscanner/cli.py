@@ -3,7 +3,6 @@
 import json
 import math
 import os
-from dataclasses import asdict
 from typing import Annotated
 
 import typer
@@ -22,19 +21,29 @@ from portscanner.core.filtering import filter_entries
 from portscanner.core.ips import ExitIPError, fetch_exit_ip
 from portscanner.core.model import PortEntry, Snapshot
 from portscanner.core.redaction import redact_cmdline
-from portscanner.presentation import COLUMNS, entry_cells
+from portscanner.presentation import COLUMNS, entry_cells, report_text, tunnel_text
 from portscanner.presentation import safe_text as _safe
+from portscanner.serialization import write_ports_json, write_snapshot_json
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
-def _table(entries: list[PortEntry], snapshot: Snapshot, *, no_color: bool) -> None:
+def _table(
+    entries: list[PortEntry],
+    snapshot: Snapshot,
+    *,
+    no_color: bool,
+    columns: tuple[str, ...] = COLUMNS,
+) -> None:
+    """Render selected columns and connector metadata independent of port matches."""
     console = Console(no_color=no_color, markup=False, highlight=False)
     table = Table(title="Lokalne porty", show_lines=True)
-    for column in COLUMNS:
+    indices = [COLUMNS.index(column) for column in columns]
+    for column in columns:
         table.add_column(column, overflow="fold")
     for entry in entries:
-        table.add_row(*(Text(value) for value in entry_cells(entry)))
+        cells = entry_cells(entry)
+        table.add_row(*(Text(cells[index]) for index in indices))
     console.print(table)
     if not entries:
         console.print("Brak pasujących wpisów w dostępnych danych.")
@@ -58,16 +67,23 @@ def _table(entries: list[PortEntry], snapshot: Snapshot, *, no_color: bool) -> N
         )
     if any(entry.proto == "udp" for entry in entries):
         console.print("UDP: związane gniazda bez weryfikacji handshake.")
+    if snapshot.tunnels:
+        console.print("Connectory Cloudflare Tunnel (niezależnie od filtra portów):")
+        for tunnel in snapshot.tunnels:
+            console.print(Text(tunnel_text(tunnel)))
 
 
 def _reports(snapshot: Snapshot) -> bool:
     """Wypisz ostrzeżenia i zwróć, czy podstawowy odczyt gniazd się udał."""
     for report in snapshot.reports:
         if report.status not in ("ok", "disabled"):
-            message = report.message or "Niepełne lub niedostępne dane źródła."
-            typer.echo(_safe(f"{report.source}: {report.status} — {message}"), err=True)
+            typer.echo(report_text(report), err=True)
     return any(
-        report.source == "listeners" and report.status == "ok"
+        report.source == "listeners"
+        and (
+            report.status == "ok"
+            or (report.status == "partial" and report.code == "udp_peer_unknown")
+        )
         for report in snapshot.reports
     )
 
@@ -127,6 +143,19 @@ def run(
     json_output: Annotated[
         bool, typer.Option("--json", help="Tablica portów JSON na stdout.")
     ] = False,
+    json_snapshot: Annotated[
+        bool,
+        typer.Option(
+            "--json-snapshot", help="Migawka JSON z raportami i connectorami."
+        ),
+    ] = False,
+    columns: Annotated[
+        str | None,
+        typer.Option(
+            "--columns",
+            help="Kolumny tabeli po przecinku, np. PROTO,BIND,PORT,PID,PROC.",
+        ),
+    ] = None,
     query: Annotated[
         str | None, typer.Option("--filter", help="Filtr :PORT, pid:PID lub tekst.")
     ] = None,
@@ -162,20 +191,29 @@ def run(
         ),
     ] = False,
     timeout: Annotated[
-        float,
-        typer.Option("--timeout", help="Timeout pojedynczej operacji w sekundach."),
-    ] = 3.0,
+        float | None,
+        typer.Option(
+            "--timeout",
+            help="Timeout operacji w sekundach: >0, maks. 3600.",
+            show_default="3.0",
+        ),
+    ] = None,
 ) -> None:
     """PortScanner: lokalne porty, procesy, kontenery i tunele."""
-    if not math.isfinite(timeout) or timeout <= 0:
+    timeout_given = timeout is not None
+    timeout = 3.0 if timeout is None else timeout
+    if not math.isfinite(timeout) or not 0 < timeout <= 3600:
         raise typer.BadParameter(
-            "Timeout musi być dodatni i skończony.", param_hint="--timeout"
+            "Timeout musi być dodatni, skończony i nie większy niż 3600 s.",
+            param_hint="--timeout",
         )
     if gui:
         if any(
             (
                 cli,
                 json_output,
+                json_snapshot,
+                columns is not None,
                 query is not None,
                 kill is not None,
                 force,
@@ -184,7 +222,7 @@ def run(
                 no_tunnels,
                 no_metrics,
                 exit_ip,
-                timeout != 3.0,
+                timeout_given,
             )
         ):
             raise typer.BadParameter("--gui nie łączy się z opcjami CLI.")
@@ -200,6 +238,8 @@ def run(
         if any(
             (
                 json_output,
+                json_snapshot,
+                columns is not None,
                 query is not None,
                 kill is not None,
                 force,
@@ -208,7 +248,7 @@ def run(
                 no_tunnels,
                 no_metrics,
                 exit_ip,
-                timeout != 3.0,
+                timeout_given,
             )
         ):
             raise typer.BadParameter("Te opcje wymagają --cli.")
@@ -222,6 +262,8 @@ def run(
         if any(
             (
                 json_output,
+                json_snapshot,
+                columns is not None,
                 query is not None,
                 exit_ip,
                 no_docker,
@@ -233,10 +275,22 @@ def run(
             raise typer.BadParameter("--kill nie łączy się z opcjami odczytu portów.")
         _kill(kill, force=force, timeout=timeout)
         return
-    if json_output and exit_ip:
-        raise typer.BadParameter(
-            "--exit-ip nie łączy się z --json (kontrakt to lista portów)."
+    if json_output and json_snapshot:
+        raise typer.BadParameter("Wybierz --json albo --json-snapshot.")
+    if (json_output or json_snapshot) and (exit_ip or columns is not None):
+        raise typer.BadParameter("--exit-ip i --columns nie łączą się z trybami JSON.")
+    selected_columns = COLUMNS
+    if columns is not None:
+        selected_columns = tuple(
+            column.strip().upper() for column in columns.split(",")
         )
+        if any(column not in COLUMNS for column in selected_columns) or len(
+            set(selected_columns)
+        ) != len(selected_columns):
+            raise typer.BadParameter(
+                "Podaj unikalne kolumny z listy: " + ", ".join(COLUMNS),
+                param_hint="--columns",
+            )
     try:
         filter_entries((), query)  # Walidacja przed odczytem systemu lub sieci.
     except ValueError as error:
@@ -250,13 +304,11 @@ def run(
     )
     entries = filter_entries(snapshot.ports, query)
     if json_output:
-        typer.echo(
-            json.dumps(
-                [asdict(entry) for entry in entries], ensure_ascii=True, indent=2
-            )
-        )
+        write_ports_json(entries, typer.get_text_stream("stdout"))
+    elif json_snapshot:
+        write_snapshot_json(snapshot, entries, typer.get_text_stream("stdout"))
     else:
-        _table(entries, snapshot, no_color=no_color)
+        _table(entries, snapshot, no_color=no_color, columns=selected_columns)
     success = _reports(snapshot)
     if exit_ip:
         try:

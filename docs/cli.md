@@ -5,6 +5,8 @@
 ```bash
 uv run --locked portscanner --cli
 uv run --locked portscanner --cli --json
+uv run --locked portscanner --cli --json-snapshot
+uv run --locked portscanner --cli --columns PROTO,BIND,PORT,PID,PROC
 uv run --locked portscanner --cli --filter :8080
 uv run --locked portscanner --cli --filter pid:4123
 uv run --locked portscanner --cli --filter postgres
@@ -21,6 +23,12 @@ Stan `access_denied` lub `gone` pozostaje widoczny; nieznany PID to `?`.
 Wiersz `origin=docker` nie potwierdza gniazda hosta, a `[config]` przy tunelu
 nie potwierdza dostępności hostname. Tagi są heurystyką. Tekst procesów i
 konfiguracji nie jest interpretowany jako Rich markup ani sterowanie terminalem.
+`--columns` wybiera kolejność i zestaw kolumn, co ułatwia odczyt w wąskim terminalu.
+Nazwy są rozdzielane przecinkami, bez rozróżniania wielkości liter; powtórzenia
+i nieznane nazwy są błędem. Opcja działa wyłącznie z tabelą.
+Pod tabelą są wszystkie wykryte connectory Cloudflare Tunnel, niezależnie od
+filtra portów: PID, stan konfiguracji i metryk, liczba połączeń (`?`, gdy nieznana)
+oraz kody przyczyn błędów. Connector bez lokalnych tras również pozostaje widoczny.
 
 ## Flagi odczytu
 
@@ -29,18 +37,21 @@ konfiguracji nie jest interpretowany jako Rich markup ani sterowanie terminalem.
 | `--cli` | Jednorazowy odczyt wspólnej migawki |
 | `--kube` | Opcjonalny odczyt Kubernetes; [kontrakt i ograniczenia](kubernetes.md) |
 | `--json` | Wyłącznie tablica `PortEntry` na stdout |
+| `--json-snapshot` | Obiekt pełnej migawki: porty, IP, Docker, connectory i raporty |
+| `--columns LIST` | Wybrane kolumny tabeli, np. `PROTO,BIND,PORT,PID,PROC` |
 | `--filter QUERY` | Filtr po odczycie; składnia poniżej |
 | `--no-color` | Wyłączenie kolorów tabeli; przy przekierowaniu terminal jest wykrywany automatycznie |
 | `--no-docker` | Bez uruchamiania Docker CLI |
 | `--no-tunnels` | Bez wykrywania konfiguracji i metryk tuneli |
 | `--no-metrics` | Bez HTTP loopback metryk; procesy i config tuneli nadal odczytywane |
-| `--timeout SECONDS` | Dodatni, skończony timeout operacji, domyślnie 3 s |
+| `--timeout SECONDS` | Timeout operacji większy od 0 i nie większy niż 3600 s, domyślnie 3 s |
 | `--exit-ip` | Jawne HTTPS do ipify, wyłącznie w trybie tabeli |
 
 Exit IP nie jest odczytywany domyślnie. `--exit-ip` ujawnia ipify adres
 wyjściowy trasy i drukuje etykietę „exit IP (widziane z internetu)”. Flaga nie
-łączy się z `--json` ani `--kill`. Timeout ma znaczenie opisane w API core:
+łączy się z trybami JSON ani `--kill`. Timeout ma znaczenie opisane w API core:
 dotyczy operacji, nie całego skanowania ani twardego limitu DNS.
+Jawne `--timeout 3` również wymaga `--cli`; wartość domyślna nie omija kontroli trybu.
 
 ## Filtry
 
@@ -63,17 +74,27 @@ Na stdout nie trafiają tabela, nagłówki, IP, potwierdzenia ani raporty źród
 Znaki specjalne są kodowane przez JSON, także przy wymuszonych kolorach terminala.
 Przykładowy kontrakt obejmujący zagnieżdżone dane jest utrwalony w
 `tests/fixtures/cli_ports.json` i sprawdzany przez `typer.testing.CliRunner`.
+Lista jest zapisywana strumieniowo po jednym rekordzie, bez budowania dodatkowej
+kopii całej listy i całego tekstu JSON w pamięci.
 
-Raporty `partial`, `unavailable` i `error` trafiają na stderr. Błąd opcjonalnego
+Osobna opcja `--json-snapshot` zapisuje obiekt z polami `ports`, `local_ips`,
+`docker`, `tunnels` i `reports`. Filtr ogranicza wyłącznie `ports`; pozostałe pola
+opisują pełny odczyt źródeł, w tym connectory bez powiązanych portów i kody błędów.
+Nie można łączyć obu formatów JSON. Raporty ostrzegawcze nadal trafiają na stderr.
+
+Raporty `partial`, `unavailable` i `error`, wraz z kodami przyczyn, trafiają na stderr. Błąd opcjonalnego
 Dockera/tuneli/procesów/IP/Kubernetes nie usuwa portów i nie zmienia samodzielnie kodu 0,
 jeśli źródło listeners zostało odczytane poprawnie. Nadal trzeba czytać stderr.
 Błąd listeners daje kod 1, nawet gdy stdout zawiera częściowe dane z Dockera.
 Nie należy uznawać pustej tablicy za brak portów bez sprawdzenia kodu wyjścia.
+Wyjątkiem jest `listeners: partial [udp_peer_unknown]`: odczyt gniazd się udał,
+ale Windows nie udostępnia informacji o peerze UDP. Ten przypadek zwraca kod 0
+z ostrzeżeniem. Inny częściowy odczyt, np. fallback na macOS, nadal daje kod 1.
 
 | Kod | Znaczenie |
 |---|---|
 | `0` | Odczyt podstawowy udany (także brak dopasowań), pomoc lub zakończenie procesu |
-| `1` | Brak odczytu listeners, błąd jawnego exit IP, odmowa/anulowanie/błąd operacji kill |
+| `1` | Nieudany lub niepełny odczyt listeners (poza `udp_peer_unknown`), błąd jawnego exit IP, odmowa/anulowanie/błąd operacji kill |
 | `2` | Nieprawidłowe argumenty lub niedozwolone połączenie flag |
 
 Na macOS systemowy odczyt psutil może wymagać root; CLI nie podnosi uprawnień.

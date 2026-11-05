@@ -10,8 +10,59 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Static
 
 from portscanner.core.actions import KillTarget
+from portscanner.core.model import Snapshot
 from portscanner.core.redaction import redact_cmdline
-from portscanner.presentation import safe_text
+from portscanner.presentation import report_text, safe_text, tunnel_text
+
+
+class DiagnosticsScreen(ModalScreen[None]):
+    """A keyboard-scrollable, complete diagnostic snapshot without height clipping."""
+
+    BINDINGS = [("escape", "close", "Zamknij")]
+    DEFAULT_CSS = """
+    DiagnosticsScreen { align: center middle; background: $background 70%; }
+    #diagnostics-scroll {
+        width: 90%; height: 90%; border: thick $accent;
+        padding: 1 2; background: $surface;
+    }
+    #diagnostics-scroll Static { height: auto; margin-bottom: 1; }
+    """
+
+    def __init__(self, snapshot: Snapshot) -> None:
+        super().__init__()
+        self.snapshot = snapshot
+
+    def compose(self) -> ComposeResult:
+        """Keep all source codes, local addresses and standalone connectors visible."""
+        with VerticalScroll(id="diagnostics-scroll"):
+            yield Static("Diagnostyka migawki — Esc zamyka", markup=False)
+            yield Static(
+                Text("\n".join(report_text(report) for report in self.snapshot.reports))
+            )
+            yield Static(
+                Text(
+                    "IP lokalne:\n"
+                    + (
+                        "\n".join(
+                            safe_text(f"{ip.interface}: {ip.address}")
+                            for ip in self.snapshot.local_ips
+                        )
+                        or "—"
+                    )
+                )
+            )
+            yield Static(
+                Text(
+                    "Connectory Cloudflare Tunnel (wszystkie):\n"
+                    + ("\n".join(tunnel_text(t) for t in self.snapshot.tunnels) or "—")
+                )
+            )
+
+    def on_mount(self) -> None:
+        self.query_one("#diagnostics-scroll", VerticalScroll).focus()
+
+    def action_close(self) -> None:
+        self.dismiss(None)
 
 
 class KillScreen(ModalScreen[bool | None]):

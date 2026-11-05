@@ -275,3 +275,37 @@ def test_indexed_merge_only_compares_candidates_on_matching_port(monkeypatch):
     rows = snap.merge_sources(entries, mappings, (TunnelInfo(1, routes),))
     assert len(rows) == 300 and all(row.docker and row.tunnels for row in rows)
     assert docker_match.call_count == route_match.call_count == 300
+
+
+def test_unknown_udp_peer_has_a_distinct_non_scan_failure_code(sources):
+    """A complete enumeration with unknown peers remains identifiable to CLI."""
+    sources["collect_listeners"].return_value = [
+        PortEntry("udp", "0.0.0.0", 5353, udp_peer_status="unknown")
+    ]
+    result = snap.collect_snapshot()
+    assert result.reports[0].status == "partial"
+    assert result.reports[0].code == "udp_peer_unknown"
+
+
+def test_incomplete_enumeration_is_not_reclassified_as_udp_limitation(
+    sources, monkeypatch
+):
+    """An incomplete fallback must never become a successful CLI scan."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(snap, "sys", SimpleNamespace(platform="darwin"))
+    sources["collect_listeners"].side_effect = ListenerAccessDenied("denied")
+    report = SourceReport(
+        "listeners", "partial", "Niepełny odczyt", code="access_denied"
+    )
+    monkeypatch.setattr(
+        snap,
+        "collect_accessible_listeners",
+        Mock(
+            return_value=Collection(
+                (PortEntry("udp", "0.0.0.0", 5353, udp_peer_status="unknown"),), report
+            )
+        ),
+    )
+    result = snap.collect_snapshot()
+    assert result.reports[0] == report
