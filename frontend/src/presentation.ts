@@ -1,5 +1,10 @@
 import type { DockerPort } from './types'
 
+export function formatEndpoint(bind: string, port: number): string {
+  const host = bind.includes(':') && !bind.startsWith('[') ? `[${bind}]` : bind
+  return `${host}:${port}`
+}
+
 export function formatArguments(args: readonly string[] | null | undefined): string {
   if (args == null) return 'Niedostępne'
   return args.length ? JSON.stringify(args) : 'Brak argumentów'

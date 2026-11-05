@@ -57,7 +57,12 @@ korzysta z gotowych zasobów Vite.
 - **TUI:** Textual Pilot sprawdza skróty, filtrowanie, sortowanie, aktualizacje
   wierszy, eksport i dialogi przy odczytach w tle.
 - **GUI:** testy mostka obejmują serializację, filtrowanie, eksport,
-  współbieżność, weryfikację celu i jednorazowość zgody.
+  współbieżność, weryfikację celu i jednorazowość zgody, izolację prywatnych metod,
+  zamknięcie podczas odczytu/eksportu oraz awarie zapisu i uprawnienia plików POSIX.
+- **Vue:** testy kompilują rzeczywiste skrypty komponentów i montują je w rendererze
+  testowym Vue z TanStack Query oraz kontrolowanym mostkiem. Obejmują przejście
+  demo/desktop, błędy i spóźnione odpowiedzi, zgody, kopiowanie IPv6 i strony tabeli
+  przy eksporcie wszystkich wyników. Nie zastępują testu natywnego DOM/WebKit.
 - **Integracje lokalne:** gniazda loopback, interfejsy, HTTP loopback i operacje
   na tymczasowym procesie utworzonym przez test, powolne odpowiedzi HTTP,
   odczyt FIFO i sprzątanie potomków poleceń.
@@ -80,6 +85,7 @@ Skrypt otwiera okno, używa kontrolowanej migawki i tymczasowego procesu Pythona
 z lokalnym gniazdem. Sprawdza m.in. responsywność, eksport, dialogi i zakończenie
 tego procesu przez standardowe reguły core. Nie dowodzi pełnej widoczności gniazd
 systemowych. Weryfikacja instalacji wheel: [pakowanie](release.md#weryfikacja-artefaktu).
+Smoke sprawdza także blokadę zdarzenia `cancel` dialogu podczas kończenia procesu.
 
 ## Zależności
 

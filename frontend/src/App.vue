@@ -63,6 +63,8 @@ const operationBusy = ref(false)
 const notice = ref('')
 const kubeEnabled = ref(false)
 const kubeBusy = ref(false)
+let kubeStateKnown = false
+let disposed = false
 let filterTimer: ReturnType<typeof setTimeout> | undefined
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 let filterRequest = 0
@@ -70,7 +72,7 @@ let refreshCluster = false
 
 const appQuery = useQuery({ queryKey: ['desktop-info', bridgeReady], queryFn: getAppInfo })
 watch(appQuery.data, (value) => {
-  if (value) kubeEnabled.value = value.kube_enabled
+  if (value && !kubeStateKnown) kubeEnabled.value = value.kube_enabled
 })
 const snapshotQuery = useQuery({
   queryKey: ['system-snapshot', bridgeReady],
@@ -95,17 +97,20 @@ const snapshotQuery = useQuery({
 watch(snapshotQuery.data, (value) => {
   if (!value || (snapshot.value && value.request_id < snapshot.value.request_id)) return
   snapshot.value = value
+  kubeStateKnown = true
   kubeEnabled.value = value.kube_enabled
   if (!search.value.trim()) matchedIds.value = new Set(value.ports.map((row) => row.id))
   else void applyCoreFilter()
 })
 
-const ports = computed(() => snapshot.value?.ports ?? previewPorts)
-const localIps = computed(() => snapshot.value?.local_ips ?? previewLocalIPs)
+const ports = computed(() => snapshot.value?.ports ?? (bridgeReady.value ? [] : previewPorts))
+const localIps = computed(
+  () => snapshot.value?.local_ips ?? (bridgeReady.value ? [] : previewLocalIPs),
+)
 const connectors = computed(
   () => snapshot.value?.tunnels ?? (bridgeReady.value ? [] : previewTunnels),
 )
-const reports = computed(() => snapshot.value?.reports ?? previewReports)
+const reports = computed(() => snapshot.value?.reports ?? (bridgeReady.value ? [] : previewReports))
 const kubeReport = computed(() => reports.value.find((report) => report.source === 'kubernetes'))
 const isPreview = computed(() => !bridgeReady.value)
 const partialReports = computed(() =>
@@ -182,6 +187,19 @@ const table = useTable({
   getRowId: (row: PortRow) => row.id,
   initialState: { sorting: [{ id: 'port', desc: false }] },
 })
+const pageSize = 100
+const page = ref(0)
+const sortedRows = computed(() => table.getRowModel().rows)
+const pageCount = computed(() => Math.max(1, Math.ceil(sortedRows.value.length / pageSize)))
+const pageRows = computed(() =>
+  sortedRows.value.slice(page.value * pageSize, (page.value + 1) * pageSize),
+)
+watch([source, protocol, search], () => {
+  page.value = 0
+})
+watch(pageCount, (count) => {
+  page.value = Math.min(page.value, count - 1)
+})
 
 async function applyCoreFilter() {
   clearTimeout(filterTimer)
@@ -194,12 +212,17 @@ async function applyCoreFilter() {
       searchError.value = ''
       return
     }
-    const result = await desktopBridge()!.filter_ports(generation, query.trim() || null)
-    if (request !== filterRequest) return
-    if (result.ok && result.generation === snapshot.value?.generation) {
-      matchedIds.value = new Set(result.ids)
-      searchError.value = ''
-    } else if (!result.ok) searchError.value = result.message ?? 'Nieprawidłowy filtr.'
+    try {
+      const result = await desktopBridge()!.filter_ports(generation, query.trim() || null)
+      if (disposed || request !== filterRequest) return
+      if (result.ok && result.generation === snapshot.value?.generation) {
+        matchedIds.value = new Set(result.ids)
+        searchError.value = ''
+      } else if (!result.ok) searchError.value = result.message ?? 'Nieprawidłowy filtr.'
+    } catch (error) {
+      if (disposed || request !== filterRequest) return
+      searchError.value = rejectedBridgeMessage(error, 'Nie udało się zastosować filtra')
+    }
   }, 140)
 }
 watch(search, () => void applyCoreFilter())
@@ -207,6 +230,7 @@ watch(ports, (rows) => {
   if (selectedId.value && !rows.some((row) => row.id === selectedId.value)) selectedId.value = null
 })
 function showNotice(message: string) {
+  if (disposed) return
   clearTimeout(noticeTimer)
   notice.value = message
   noticeTimer = setTimeout(() => {
@@ -228,6 +252,7 @@ async function toggleKubernetes() {
   try {
     const result = await api.set_kubernetes(!kubeEnabled.value)
     if (!result.ok) return showNotice(result.message ?? 'Nie udało się zmienić ustawienia.')
+    kubeStateKnown = true
     kubeEnabled.value = result.kube_enabled
     await snapshotQuery.refetch()
   } catch (error) {
@@ -237,10 +262,12 @@ async function toggleKubernetes() {
   }
 }
 function refreshSnapshot() {
+  if (!bridgeReady.value) return
   refreshCluster = true
   void snapshotQuery.refetch()
 }
 async function exportVisible() {
+  if (operationBusy.value) return
   const current = snapshot.value
   if (!current) return showNotice('Natywny eksport jest dostępny w aplikacji desktopowej.')
   operationBusy.value = true
@@ -258,11 +285,15 @@ async function exportVisible() {
   }
 }
 async function requestKill(row: PortRow) {
-  if (row.pid === null || !desktopBridge()) return
+  if (operationBusy.value || !snapshot.value || row.pid === null || !desktopBridge()) return
   operationBusy.value = true
   try {
     const result = await desktopBridge()!.prepare_process(row.pid)
     if (!result.ok) return showNotice(result.message ?? 'Procesu nie można zakończyć.')
+    if (disposed) {
+      await desktopBridge()?.cancel_process(result.token)
+      return
+    }
     pendingKill.value = {
       token: result.token,
       target: result.target,
@@ -278,7 +309,7 @@ async function requestKill(row: PortRow) {
 }
 async function confirmKill() {
   const consent = pendingKill.value
-  if (!consent) return
+  if (!consent || operationBusy.value) return
   operationBusy.value = true
   try {
     const result = await desktopBridge()!.terminate_process(
@@ -286,14 +317,18 @@ async function confirmKill() {
       consent.escalation || forceKill.value,
     )
     if (!result.ok && result.continuation) {
+      if (disposed || !killDialog.value?.open) {
+        await desktopBridge()?.cancel_process(result.continuation.token)
+        return
+      }
       pendingKill.value = result.continuation
       forceKill.value = false
       showNotice(result.message)
       return
     }
+    if (disposed) return
     pendingKill.value = null
     killDialog.value?.close()
-    pendingKill.value = null
     if (!result.ok) showNotice(result.message ?? 'Nie udało się zakończyć procesu.')
     else {
       showNotice(`Proces PID ${result.pid} został zakończony.`)
@@ -318,6 +353,9 @@ async function cancelKill() {
       showNotice('Nie udało się unieważnić zgody; wygaśnie automatycznie.')
     }
   }
+}
+function onKillCancel(event: Event) {
+  if (operationBusy.value) event.preventDefault()
 }
 function onBridgeReady() {
   bridgeReady.value = true
@@ -344,6 +382,9 @@ onMounted(() => {
   void applyCoreFilter()
 })
 onBeforeUnmount(() => {
+  disposed = true
+  ++filterRequest
+  void cancelKill()
   window.removeEventListener('pywebviewready', onBridgeReady)
   window.removeEventListener('keydown', keyboard)
   clearTimeout(filterTimer)
@@ -376,6 +417,8 @@ onBeforeUnmount(() => {
           :key="item.id"
           class="nav-item"
           :class="{ active: source === item.id }"
+          :aria-pressed="source === item.id"
+          :aria-label="item.label"
           @click="source = item.id"
         >
           <component :is="item.icon" :size="16" /><span>{{ item.label }}</span
@@ -435,7 +478,7 @@ onBeforeUnmount(() => {
             <button
               class="secondary-button"
               data-testid="refresh"
-              :disabled="snapshotQuery.isFetching.value"
+              :disabled="isPreview || snapshotQuery.isFetching.value"
               @click="refreshSnapshot"
             >
               <RefreshCw
@@ -445,7 +488,8 @@ onBeforeUnmount(() => {
             ><button
               class="secondary-button"
               data-testid="export"
-              :disabled="operationBusy || isPreview"
+              title="Zapisz wszystkie wyniki filtra, ze wszystkich stron"
+              :disabled="operationBusy || isPreview || !snapshot"
               @click="exportVisible"
             >
               <ArrowDownToLine :size="14" />Eksportuj widok
@@ -462,8 +506,12 @@ onBeforeUnmount(() => {
         <div v-else-if="snapshotQuery.isError.value" class="preview-note" role="alert">
           <CircleAlert :size="15" class="shrink-0 text-accent" />
           <p>
-            <strong class="text-soft">Odświeżenie nie powiodło się.</strong> Pokazuję ostatnią
-            poprawną migawkę i spróbuję ponownie.
+            <strong class="text-soft">Odświeżenie nie powiodło się.</strong>
+            {{
+              snapshot
+                ? 'Pokazuję ostatnią poprawną migawkę i spróbuję ponownie.'
+                : 'Nie mam jeszcze danych systemu. Spróbuję ponownie.'
+            }}
           </p>
         </div>
         <div v-else-if="partialReports.length" class="preview-note" role="status">
@@ -536,6 +584,7 @@ onBeforeUnmount(() => {
                   v-for="item in protocols"
                   :key="item.id"
                   :class="{ active: protocol === item.id }"
+                  :aria-pressed="protocol === item.id"
                   @click="protocol = item.id"
                 >
                   {{ item.label }}
@@ -545,10 +594,7 @@ onBeforeUnmount(() => {
             <p v-if="searchError" class="px-4 py-2 text-[11px] text-[#e6a9a9]" role="alert">
               {{ searchError }}
             </p>
-            <div
-              v-if="snapshotQuery.isPending.value && bridgeReady && !snapshot"
-              class="empty-state"
-            >
+            <div v-if="bridgeReady && !snapshot" class="empty-state">
               <RefreshCw class="mb-4 animate-spin text-accent" />
               <p>Pobieram pierwszą migawkę…</p>
             </div>
@@ -571,10 +617,25 @@ onBeforeUnmount(() => {
                 </caption>
                 <thead>
                   <tr v-for="group in table.getHeaderGroups()" :key="group.id">
-                    <th v-for="header in group.headers" :key="header.id">
+                    <th
+                      v-for="header in group.headers"
+                      :key="header.id"
+                      :aria-sort="
+                        header.column.getIsSorted() === 'asc'
+                          ? 'ascending'
+                          : header.column.getIsSorted() === 'desc'
+                            ? 'descending'
+                            : undefined
+                      "
+                    >
                       <button
                         v-if="header.column.getCanSort()"
-                        @click="header.column.getToggleSortingHandler()?.($event)"
+                        @click="
+                          (event) => {
+                            page = 0
+                            header.column.getToggleSortingHandler()?.(event)
+                          }
+                        "
                       >
                         <FlexRender
                           :render="header.column.columnDef.header"
@@ -596,7 +657,7 @@ onBeforeUnmount(() => {
                 </thead>
                 <tbody>
                   <tr
-                    v-for="row in table.getRowModel().rows"
+                    v-for="row in pageRows"
                     :key="row.id"
                     :data-port="row.original.port"
                     :class="{ selected: row.id === selectedId }"
@@ -639,19 +700,32 @@ onBeforeUnmount(() => {
                 </tbody>
               </table>
             </div>
+            <nav
+              v-if="pageCount > 1"
+              class="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs"
+              aria-label="Strony portów"
+            >
+              <button class="secondary-button" :disabled="page === 0" @click="page--">
+                Poprzednia
+              </button>
+              <span role="status">Strona {{ page + 1 }} z {{ pageCount }}</span>
+              <button class="secondary-button" :disabled="page + 1 >= pageCount" @click="page++">
+                Następna
+              </button>
+            </nav>
             <div class="table-bottom">
               <span>{{ table.getRowModel().rows.length }} z {{ ports.length }} wpisów</span
               ><span v-if="snapshot"
                 >Aktualizacja {{ new Date(snapshot.collected_at).toLocaleTimeString('pl-PL') }} · co
                 2 s</span
-              ><span v-else>Dane demonstracyjne</span>
+              ><span v-else>{{ isPreview ? 'Dane demonstracyjne' : 'Oczekiwanie na dane' }}</span>
             </div>
           </section>
           <Transition name="inspector"
             ><PortInspector
               v-if="selected"
               :port="selected"
-              :desktop="!isPreview"
+              :desktop="!isPreview && snapshot !== null"
               :busy="operationBusy"
               @close="selectedId = null"
               @request-kill="requestKill(selected)"
@@ -690,10 +764,16 @@ onBeforeUnmount(() => {
         <Check :size="15" class="text-accent" />{{ notice }}
       </div></Transition
     >
-    <dialog ref="killDialog" class="help-dialog" @close="cancelKill">
+    <dialog
+      ref="killDialog"
+      class="help-dialog"
+      aria-labelledby="kill-heading"
+      @cancel="onKillCancel"
+      @close="cancelKill"
+    >
       <template v-if="pendingKill"
         ><p class="eyebrow text-accent">Potwierdzenie operacji</p>
-        <h2 class="mt-4 text-xl font-semibold">
+        <h2 id="kill-heading" class="mt-4 text-xl font-semibold">
           {{ pendingKill.escalation ? 'Wymusić zakończenie' : 'Zakończyć' }}
           {{ pendingKill.target.name }}?
         </h2>
@@ -737,9 +817,9 @@ onBeforeUnmount(() => {
         </div></template
       >
     </dialog>
-    <dialog ref="helpDialog" class="help-dialog">
+    <dialog ref="helpDialog" class="help-dialog" aria-labelledby="help-heading">
       <p class="eyebrow text-accent">PortManager GUI</p>
-      <h2 class="mt-4 text-xl font-semibold">Lokalny obraz portów</h2>
+      <h2 id="help-heading" class="mt-4 text-xl font-semibold">Lokalny obraz portów</h2>
       <p class="mt-4 text-sm leading-7 text-muted">
         Migawka łączy gniazda TCP i UDP z procesami, publikacjami Docker Compose, tunelami oraz
         tagami usług. Aplikacja nie pobiera automatycznie publicznego adresu IP i nie podnosi

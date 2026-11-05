@@ -3,15 +3,18 @@
 import importlib
 import json
 import os
+import stat
+import tempfile
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict
 from datetime import datetime
+from functools import wraps
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Concatenate, TextIO, cast
 from urllib.parse import urlsplit
 
 from portscanner.core.actions import (
@@ -45,10 +48,31 @@ from portscanner.gui.core_payloads import (
     SourceReportPayload,
     TunnelInfoPayload,
 )
+from portscanner.serialization import write_ports_json
 
 
 class GuiLaunchError(RuntimeError):
     """Błąd startu, który CLI może pokazać bez tracebacka."""
+
+
+def _bridge_operation[**P, T](
+    method: Callable[Concatenate["DesktopAPI", P], T],
+) -> Callable[Concatenate["DesktopAPI", P], T | BridgeFailure]:
+    """Keep unexpected Python details out of JS and reject calls after shutdown."""
+
+    @wraps(method)
+    def guarded(
+        self: "DesktopAPI", *args: P.args, **kwargs: P.kwargs
+    ) -> T | BridgeFailure:
+        with self._state_lock:
+            if self._closed:
+                return _closed_error()
+        try:
+            return method(self, *args, **kwargs)
+        except Exception:
+            return _error("Nie udało się wykonać operacji aplikacji.", "internal_error")
+
+    return guarded
 
 
 class DesktopAPI:
@@ -70,6 +94,7 @@ class DesktopAPI:
         self._terminate = terminate
         self._scan_lock = threading.Lock()
         self._action_lock = threading.Lock()
+        self._export_lock = threading.Lock()
         self._state_lock = threading.Lock()
         self._snapshot: Snapshot | None = None
         self._generation = 0
@@ -91,7 +116,10 @@ class DesktopAPI:
     def _close(self) -> None:
         """Release retained process identities and stop consent timers and discovery."""
         with self._state_lock:
+            if self._closed:
+                return
             self._closed = True
+            self._snapshot = None
             self._targets.clear()
             if self._expiry_timer is not None:
                 self._expiry_timer.cancel()
@@ -126,7 +154,7 @@ class DesktopAPI:
         token = uuid.uuid4().hex
         with self._state_lock:
             if self._closed:
-                return _error("Aplikacja jest zamknięta.", "consent_expired")
+                return _closed_error()
             self._targets[token] = (time.monotonic() + 120.0, target, pending)
             self._schedule_expiry()
         return {
@@ -141,6 +169,7 @@ class DesktopAPI:
             },
         }
 
+    @_bridge_operation
     def cancel_process(self, token: str) -> Cancelled | BridgeFailure:
         """Forget a consent token without a signal; repeated cancellation is safe."""
         if not isinstance(token, str):
@@ -150,6 +179,7 @@ class DesktopAPI:
             self._schedule_expiry()
         return {"ok": True, "status": "cancelled"}
 
+    @_bridge_operation
     def get_app_info(self) -> AppInfo:
         """Expose runtime metadata and the platform-specific termination mode."""
         return {
@@ -161,6 +191,7 @@ class DesktopAPI:
             "kube_enabled": self._kube,
         }
 
+    @_bridge_operation
     def set_kubernetes(self, enabled: bool) -> KubernetesSuccess | BridgeFailure:
         """Jawne włączenie odczytu klastra także przy uruchomieniu z Findera."""
         if not isinstance(enabled, bool):
@@ -168,16 +199,19 @@ class DesktopAPI:
         if not self._scan_lock.acquire(blocking=False):
             return _error("Poczekaj na zakończenie odświeżania.", busy=True)
         try:
-            if self._kube != enabled:
-                self._kube = enabled
-                self._kube_discovery.reset()
-                with self._state_lock:
+            with self._state_lock:
+                if self._closed:
+                    return _closed_error()
+                if self._kube != enabled:
+                    self._kube_discovery.reset()
+                    self._kube = enabled
                     self._generation += 1
                     self._snapshot = None
             return {"ok": True, "kube_enabled": self._kube}
         finally:
             self._scan_lock.release()
 
+    @_bridge_operation
     def read_snapshot(
         self, request_id: int, refresh_kube: bool = False
     ) -> SnapshotSuccess | BridgeFailure:
@@ -203,15 +237,11 @@ class DesktopAPI:
                     "collection_failed",
                     request_id=request_id,
                 )
-            with self._state_lock:
-                self._generation += 1
-                generation = self._generation
-                self._snapshot = snapshot
-            return {
+            result: SnapshotSuccess = {
                 "ok": True,
                 "busy": False,
                 "request_id": request_id,
-                "generation": generation,
+                "generation": 0,
                 "kube_enabled": self._kube,
                 "collected_at": datetime.now()
                 .astimezone()
@@ -229,9 +259,17 @@ class DesktopAPI:
                     for tunnel in snapshot.tunnels
                 ],
             }
+            with self._state_lock:
+                if self._closed:
+                    return _closed_error()
+                self._generation += 1
+                result["generation"] = self._generation
+                self._snapshot = snapshot
+                return result
         finally:
             self._scan_lock.release()
 
+    @_bridge_operation
     def filter_ports(
         self, generation: int, query: str | None
     ) -> FilterSuccess | BridgeFailure:
@@ -260,13 +298,30 @@ class DesktopAPI:
             "ids": [_port_id(entry) for entry in entries],
         }
 
+    @_bridge_operation
     def export_ports(
         self, generation: int, ids: list[str]
     ) -> ExportSaved | Cancelled | BridgeFailure:
         """Zapisz wybrany i uporządkowany widok przez natywny dialog plikowy."""
+        if not self._export_lock.acquire(blocking=False):
+            return _error("Inny eksport nadal trwa.", busy=True)
+        try:
+            return self._export_ports(generation, ids)
+        except Exception:
+            return _error("Nie udało się zapisać pliku JSON.", "export_failed")
+        finally:
+            self._export_lock.release()
+
+    def _export_ports(
+        self, generation: int, ids: list[str]
+    ) -> ExportSaved | Cancelled | BridgeFailure:
+        if isinstance(generation, bool) or not isinstance(generation, int):
+            return _error("Nieprawidłowa generacja migawki.")
         if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
             return _error("Nieprawidłowa lista wpisów do eksportu.")
         with self._state_lock:
+            if self._closed:
+                return _closed_error()
             snapshot = self._snapshot
             current = self._generation
         if snapshot is None or generation != current:
@@ -296,14 +351,45 @@ class DesktopAPI:
                 selection[0] if isinstance(selection, (tuple, list)) else selection
             )
             path = Path(raw_path)
-            data = [asdict(by_id[item]) for item in ids]
-            path.write_text(
-                json.dumps(data, ensure_ascii=True, indent=2) + "\n", encoding="utf-8"
-            )
+            with self._state_lock:
+                if self._closed:
+                    return _closed_error()
+            self._write_export(path, (by_id[item] for item in ids))
             return {"ok": True, "status": "saved", "path": str(path)}
         except (OSError, TypeError, ValueError):
             return _error("Nie udało się zapisać pliku JSON.", "export_failed")
 
+    def _write_export(self, path: Path, entries: Iterable[PortEntry]) -> None:
+        """Publish a private file atomically; failed writes retain the destination."""
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as stream:
+                temporary = Path(stream.name)
+                write_ports_json(entries, cast(TextIO, stream.file))
+                stream.flush()
+                os.fsync(stream.fileno())
+                if os.name == "posix":
+                    try:
+                        mode = stat.S_IMODE(path.stat().st_mode) & 0o600
+                    except FileNotFoundError:
+                        mode = 0o600
+                    os.fchmod(stream.fileno(), mode)
+            with self._state_lock:
+                if self._closed:
+                    raise RuntimeError("Export cancelled during shutdown")
+                os.replace(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    @_bridge_operation
     def prepare_process(self, pid: int) -> PrepareSuccess | BridgeFailure:
         """Utwórz krótkotrwałą zgodę przypisaną do zweryfikowanej tożsamości."""
         if isinstance(pid, bool) or not isinstance(pid, int):
@@ -314,6 +400,7 @@ class DesktopAPI:
             return _error(str(error), "process_rejected")
         return self._store_target(target)
 
+    @_bridge_operation
     def terminate_process(
         self, token: str, force: bool = False
     ) -> ActionSuccess | BridgeFailure:
@@ -324,6 +411,8 @@ class DesktopAPI:
             return _error("Inna operacja na procesie nadal trwa.", busy=True)
         try:
             with self._state_lock:
+                if self._closed:
+                    return _closed_error()
                 prepared = self._targets.pop(token, None)
                 self._schedule_expiry()
             if prepared is None or prepared[0] <= time.monotonic():
@@ -357,6 +446,10 @@ class DesktopAPI:
             }
         finally:
             self._action_lock.release()
+
+
+def _closed_error() -> BridgeFailure:
+    return _error("Aplikacja jest zamknięta.", "app_closed")
 
 
 def _error(
@@ -428,14 +521,26 @@ def launch(*, kube: bool = False) -> None:
         window = webview.create_window(
             "PortManager",
             url,
-            js_api=api,
             width=1320,
             height=860,
             min_size=(900, 620),
             background_color="#101113",
             text_select=True,
         )
+        # No js_api object: pywebview's fallback dispatcher must not traverse
+        # private attributes (including the native window) through dotted names.
+        window.expose(
+            api.get_app_info,
+            api.read_snapshot,
+            api.filter_ports,
+            api.export_ports,
+            api.set_kubernetes,
+            api.prepare_process,
+            api.terminate_process,
+            api.cancel_process,
+        )
         api._attach_window(window, webview.SAVE_DIALOG)
+        window.events.closed += api._close
         icon = Path(__file__).parent / "icons" / "portmanager.icns"
         webview.start(
             http_server=urlsplit(url).scheme != "http",
