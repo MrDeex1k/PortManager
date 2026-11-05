@@ -25,6 +25,59 @@ class UnsafeFileError(ValueError):
     """A configuration path did not refer to a regular file."""
 
 
+def _same_process(process: psutil.Process) -> bool:
+    """Compare a fresh identity against the creation time retained when observed."""
+    try:
+        return psutil.Process(process.pid).create_time() == process.create_time()
+    except (psutil.Error, OSError, RuntimeError):
+        return False
+
+
+def _observe_descendants(
+    root: psutil.Process, descendants: dict[int, psutil.Process]
+) -> None:
+    """Scan once, then traverse children of surviving, identity-checked ancestors."""
+    current: dict[int, psutil.Process] = {}
+    children: dict[int, list[psutil.Process]] = {}
+    for pid in psutil.pids():
+        try:
+            process = psutil.Process(pid)  # Avoid process_iter's cached identities.
+            with process.oneshot():
+                parent_pid = process.ppid()
+                process.create_time()  # Retain the identity before following edges.
+            current[pid] = process
+            children.setdefault(parent_pid, []).append(process)
+        except (psutil.Error, OSError, RuntimeError):
+            continue
+    pending = [root, *descendants.values()]
+    visited: set[int] = set()
+    while pending:
+        parent = pending.pop()
+        if parent.pid in visited:
+            continue
+        actual = current.get(parent.pid)
+        if actual is None or actual.create_time() != parent.create_time():
+            continue
+        if not _same_process(parent):
+            continue
+        visited.add(parent.pid)
+        for child in children.get(parent.pid, ()):
+            if child.create_time() < parent.create_time() or not _same_process(child):
+                continue
+            descendants[child.pid] = child
+            pending.append(child)
+
+
+def _stop_descendants(descendants: dict[int, psutil.Process]) -> None:
+    """Never signal a PID that has been reused since it was observed."""
+    for child in tuple(descendants.values()):
+        try:
+            if _same_process(child):
+                child.kill()  # psutil also checks identity before signalling.
+        except (psutil.Error, OSError, RuntimeError):
+            pass
+
+
 def _stop_tree(process: subprocess.Popen[bytes], job: WindowsJob | None = None) -> None:
     """Kill the original process group or Windows job and bound the reap wait."""
     if os.name == "posix":
@@ -126,15 +179,14 @@ def run_command(
         """Retain observed process identities even after reparenting or setsid."""
         try:
             root = psutil.Process(process.pid)
+            root.create_time()
         except (psutil.Error, OSError, RuntimeError):
             return
         while not stop.is_set():
-            for parent in (root, *tuple(descendants.values())):
-                try:
-                    for child in parent.children(recursive=True):
-                        descendants[child.pid] = child
-                except (psutil.Error, OSError, RuntimeError):
-                    pass
+            try:
+                _observe_descendants(root, descendants)
+            except (psutil.Error, OSError, RuntimeError):
+                pass
             stop.wait(0.01)
 
     def emit(stdout: bool, data: bytes | None | Exception) -> None:
@@ -208,11 +260,7 @@ def run_command(
         if watcher and watcher.ident is not None:
             watcher.join(timeout=0.2)
         try:
-            for child in tuple(descendants.values()):
-                try:
-                    child.kill()  # psutil checks PID reuse before signalling.
-                except (psutil.Error, OSError, RuntimeError):
-                    pass
+            _stop_descendants(descendants)
             _stop_tree(process, job)
         finally:
             for reader in readers:

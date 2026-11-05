@@ -1,6 +1,7 @@
 """Wykrywanie lokalnych connectorów; bez API Cloudflare, tokenów i zmian tuneli."""
 
 import math
+import os
 import re
 import socket
 import subprocess
@@ -98,8 +99,8 @@ _BOOL_FLAGS = {
 }
 
 
-def _arguments(args: tuple[str, ...]) -> tuple[bool, dict[str, str]]:
-    """Separate option values from subcommands; unknown options fail closed."""
+def _arguments(args: tuple[str, ...]) -> tuple[bool | None, dict[str, str]]:
+    """Return None for unrecognized arguments, False for non-connector commands."""
     positional = []
     options = {}
     values = iter(args[1:])
@@ -113,11 +114,11 @@ def _arguments(args: tuple[str, ...]) -> tuple[bool, dict[str, str]]:
                 options[flag] = value if separator else "true"
                 continue
             if flag not in _VALUE_FLAGS:
-                return False, {}
+                return None, {}
             if not separator:
                 value = next(values, "")
             if not value:
-                return False, {}
+                return None, {}
             options[flag] = value
         else:
             positional.append(arg)
@@ -286,6 +287,11 @@ def _config(
             for name in ("config.yml", "config.yaml")
         )
     for path in paths:
+        if explicit is None:
+            try:
+                os.lstat(path)
+            except FileNotFoundError:
+                continue
         try:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -377,6 +383,9 @@ def collect_tunnels(
                     partial |= not info.get("name") and not args
                     continue
                 connector, options = _arguments(args)
+                if args and connector is None:
+                    partial = True
+                    continue
                 if args and not connector:
                     continue
                 tunnel = TunnelInfo(process.pid)

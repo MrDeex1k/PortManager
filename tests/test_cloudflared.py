@@ -448,3 +448,76 @@ def test_all_connectors_share_one_io_budget(connector, monkeypatch):
     assert result.items[1].metrics_code == "timeout"
     assert result.items[1].config_code == "timeout"
     assert metrics.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "arguments,status",
+    [
+        (["tunnel", "--heartbeat-interval", "5s", "run"], "partial"),
+        (["tunnel", "run", "--url"], "partial"),
+        (["tunnel", "--logfile", "run", "list"], "ok"),
+        (["tunnel", "list"], "ok"),
+    ],
+)
+def test_unrecognized_arguments_report_incomplete_visibility(
+    connector, monkeypatch, arguments, status
+):
+    """Unknown options are uncertain; recognized administrative commands are not."""
+    connector.info["cmdline"] = ["cloudflared", *arguments]
+    config = Mock()
+    monkeypatch.setattr(cf, "_config", config)
+    result = cf.collect_tunnels()
+    assert result.items == ()
+    assert result.report.status == status
+    config.assert_not_called()
+    connector.net_connections.assert_not_called()
+
+
+def test_missing_default_configs_do_not_start_readers(connector, monkeypatch):
+    """Six absent candidates should use no interpreter starts or I/O budget."""
+    connector.username.return_value = psutil.Process().username()
+    stat = Mock(side_effect=FileNotFoundError)
+    reader = Mock()
+    monkeypatch.setattr(cf.os, "lstat", stat)
+    monkeypatch.setattr(cf, "read_regular_file", reader)
+    assert cf._config(connector, ("cloudflared", "tunnel", "run")) == (
+        {},
+        "unavailable",
+    )
+    assert stat.call_count == 6
+    reader.assert_not_called()
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError])
+def test_default_config_stat_errors_are_not_hidden(connector, monkeypatch, error):
+    """Only ENOENT is an absent candidate, not denied or failed metadata I/O."""
+    reader = Mock()
+    monkeypatch.setattr(cf.os, "lstat", Mock(side_effect=error))
+    monkeypatch.setattr(cf, "read_regular_file", reader)
+    with pytest.raises(error):
+        cf._config(connector, ("cloudflared", "tunnel", "run"))
+    reader.assert_not_called()
+
+
+def test_explicit_config_still_uses_bounded_reader(connector, monkeypatch):
+    """Explicit paths bypass the optimization and retain missing-file errors."""
+    stat = Mock(side_effect=AssertionError("Explicit path must go to reader"))
+    reader = Mock(side_effect=FileNotFoundError)
+    monkeypatch.setattr(cf.os, "lstat", stat)
+    monkeypatch.setattr(cf, "read_regular_file", reader)
+    with pytest.raises(FileNotFoundError):
+        cf._config(connector, tuple(connector.info["cmdline"]))
+    stat.assert_not_called()
+    reader.assert_called_once()
+
+
+def test_existing_default_candidate_keeps_descriptor_validation(connector, monkeypatch):
+    """A stat result does not bypass the bounded reader's regular-file check."""
+    from portscanner.core.command import UnsafeFileError
+
+    monkeypatch.setattr(cf.os, "lstat", Mock(return_value=object()))
+    reader = Mock(side_effect=UnsafeFileError)
+    monkeypatch.setattr(cf, "read_regular_file", reader)
+    with pytest.raises(UnsafeFileError):
+        cf._config(connector, ("cloudflared", "tunnel", "run"))
+    reader.assert_called_once()

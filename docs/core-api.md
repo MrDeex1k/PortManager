@@ -171,6 +171,8 @@ Najpierw wykrywamy proces `cloudflared` (również `.exe`), pomijając komendy
 administracyjne. Bez procesu nie szukamy konfiguracji ani nie odpytujemy portów.
 Parser oddziela wartości znanych opcji od podkomend; nieznane opcje pomija
 konserwatywnie wraz z nierozpoznanym procesem. Nazwa pliku `info` nie jest komendą.
+Nierozpoznane opcje oznaczają częściową widoczność w raporcie; rozpoznane komendy
+administracyjne są pomijane bez takiego ostrzeżenia.
 Jawne ścieżki względne są rozwiązywane względem katalogu roboczego procesu.
 Pliki domyślne: `.cloudflared/config.yml`/`.yaml` bieżącego użytkownika tylko dla
 procesu tego użytkownika oraz `/etc/cloudflared` i `/usr/local/etc/cloudflared`.

@@ -169,7 +169,7 @@ def test_pipe_readers_stop_even_if_a_descendant_escapes_tracking(tmp_path, monke
     import threading
 
     pid_file = tmp_path / "escaped.pid"
-    monkeypatch.setattr(psutil.Process, "children", lambda *args, **kwargs: [])
+    monkeypatch.setattr(command, "_observe_descendants", lambda *args: None)
     fake_kubectl(
         tmp_path,
         monkeypatch,
