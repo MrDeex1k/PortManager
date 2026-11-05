@@ -14,7 +14,12 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from portscanner.core import collect_snapshot
-from portscanner.core.actions import ProcessActionError, prepare_kill, terminate_target
+from portscanner.core.actions import (
+    ProcessActionError,
+    TerminationPending,
+    prepare_kill,
+    terminate_target,
+)
 from portscanner.core.filtering import filter_entries
 from portscanner.core.kube_cache import KubeDiscovery
 from portscanner.core.model import PortEntry, Snapshot
@@ -318,7 +323,18 @@ class PortScannerApp(App[None]):
                 self.message.update("Anulowano kończenie procesu.")
                 return
             self.message.update(f"Kończenie procesu PID {target.pid}…")
-            await asyncio.to_thread(terminate_target, target, force=force)
+            try:
+                await asyncio.to_thread(terminate_target, target, force=force)
+            except TerminationPending as pending:
+                consent = await self.push_screen_wait(
+                    KillScreen(target, escalation=True)
+                )
+                if consent is None:
+                    self.message.update(
+                        "Anulowano eskalację; proces może nadal działać."
+                    )
+                    return
+                await asyncio.to_thread(pending.pending.resume)
             self.message.update(f"Zakończono proces PID {target.pid}.")
             self.action_refresh()
         except ProcessActionError as error:

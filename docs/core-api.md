@@ -28,7 +28,10 @@ data = asdict(snapshot)  # json.dumps(data) serializuje tuple jako tablice JSON
 `SourceReport(source, status, message)` używa stanów `ok`, `partial`,
 `unavailable`, `error`, `disabled`. `ok` z pustymi danymi oznacza udany odczyt
 bez wyników. `error` lub `unavailable` z pustymi danymi nie oznacza braku usług.
-Na macOS systemowy odczyt psutil może wymagać root. Na Linuxie niedostępne
+Na macOS systemowy odczyt psutil może wymagać root. Po odmowie migawka próbuje
+odczytać gniazda dostępnych procesów i oznacza wynik jako `partial`.
+`accessible_fallback=False` wyłącza tę próbę; odmowa ma status `unavailable`.
+Błędy natywne psutil, w tym `RuntimeError`, są izolowane do danego źródła. Na Linuxie niedostępne
 gniazda mogą zostać pominięte bez błędu. Wynik nie gwarantuje pełnej widoczności
 systemu, a odczyty poszczególnych źródeł nie są atomowe.
 Interfejs musi pokazać raporty; nie może zamieniać błędu odczytu na „brak portów”.
@@ -41,8 +44,9 @@ Interfejsy cyklicznie odświeżające dane przekazują opcjonalne
 `kube_discovery=KubeDiscovery()` z `portscanner.core.kube_cache` do
 `collect_snapshot(kube=True, kube_discovery=...)`. Instancja należy do sesji
 interfejsu: odczytuje NodePort w tle, przechowuje wynik przez 30 s i zawsze
-rozpoznaje port-forward z bieżących lokalnych danych. Wiek cache znajduje się
-w wiadomości raportu Kubernetes. `request_refresh()` omija TTL, `reset()`
+rozpoznaje port-forward z bieżących lokalnych danych. Raport zawiera `last_success_at` (ISO 8601 UTC), `age_seconds` (wiek liczony
+zegarem monotonicznym), `stale` i `refreshing`; bez udanego odczytu czas i wiek
+są `None`. Wiek jest również opisany w wiadomości raportu Kubernetes. `request_refresh()` omija TTL, `reset()`
 unieważnia dane i wynik odczytu w toku, a `close()` kończy sesję i czeka na
 sprzątnięcie ograniczonego czasowo odczytu. Bez `kube=True` instancja nie jest
 wywoływana. Bez instancji odczyt Kubernetes pozostaje synchroniczny.
@@ -63,6 +67,8 @@ ani jej automatycznego odświeżania — nadal służy do tego jawne `fetch_exit
 - `tunnels: tuple[TunnelRoute, ...]` — kandydaci z konfiguracji origin.
 - `kubernetes: tuple[KubernetesPort, ...]` — konfiguracja NodePort lub cel port-forward.
 - `tags: tuple[ServiceTag, ...]` — tagi heurystyczne i ich podstawa.
+- `udp_peer_status: "not_applicable" | "absent" | "unknown"` — widoczność peera
+  lokalnego gniazda UDP; `not_applicable` dotyczy TCP i wpisów konfiguracyjnych.
 - `origin: "socket" | "docker" | "kubernetes"` — pochodzenie wiersza, domyślnie `socket`.
 
 `origin="docker"` oznacza publikację zgłoszoną przez Docker bez odpowiadającego
@@ -77,6 +83,10 @@ z przestrzeni kontenera do hosta. Reguły tunelu dopasowujemy tylko do TCP,
 zgodnego portu i lokalnego adresu; `localhost` oznacza loopback/wildcard.
 Nie rozwiązujemy nazw origin przez DNS. Reguły zachowują kolejność i `path`;
 przypisanie reguły do portu nie ocenia priorytetów routingu ani osiągalności hostname.
+Relacje tuneli są dołączane po utworzeniu wszystkich wierszy, także NodePort.
+Scalanie indeksuje kandydatów według protokołu/portu, zachowując kolejność reguł.
+Strefa IPv6 z URL (`%25en0`) jest normalizowana do postaci systemowej (`%en0`),
+bez usuwania identyfikatora interfejsu.
 
 ## Szczegóły procesu
 
@@ -195,6 +205,13 @@ tekst dopasowuje podciąg bez wielkości liter. Błędny filtr zgłasza `ValueEr
 sprawdza politykę bez wysyłania sygnału. UI pokazuje dane i musi uzyskać zgodę,
 po czym wywołuje `terminate_target(target, force=False, timeout=3.0)`.
 Ta funkcja ponownie sprawdza tożsamość i reguły przed sygnałem oraz eskalacją.
+Wynik to `terminated` albo `already_exited` (zakończenie podczas eskalacji).
+Timeout po wysłaniu terminate bez force zgłasza `TerminationPending`, podklasę
+`ProcessActionError`. Jej `pending.resume(timeout=...)` wolno wywołać dopiero po
+nowej zgodzie na kill. Kontynuacja jest jednorazowa i ważna 120 sekund; zachowuje
+kontrolę właściciela, przestrzeni nazw i tożsamości, ale nie wymaga otwartego portu.
+Nowa operacja przez `prepare_kill` nadal wymaga gniazda.
+
 Błędy i odmowy zgłaszają `ProcessActionError`; nieprawidłowy timeout `ValueError`.
 Wywołania `collect_snapshot()` nigdy nie kończą procesów.
 Politykę i allowlistę opisuje [CLI](cli.md); TUI współdzieli te funkcje i zapewnia własny dialog zgody.
@@ -203,7 +220,10 @@ Politykę i allowlistę opisuje [CLI](cli.md); TUI współdzieli te funkcje i za
 
 `collect_listeners()` z `core/listeners.py` zwraca lokalne TCP LISTEN oraz
 związane gniazda UDP bez zdalnego adresu. Nie wysyła pakietów; wpis UDP nie
-potwierdza odpowiedzi serwera. Wysokie porty nie są odrzucane. Para wildcard
+potwierdza odpowiedzi serwera. Na Windows psutil nie udostępnia zdalnego adresu
+UDP: `udp_peer_status="unknown"` i raport `partial` opisują to ograniczenie.
+Nieznany właściciel oznaczony przez Windows jako PID 0 jest normalizowany do `None`.
+Wysokie porty nie są odrzucane. Para wildcard
 IPv4/IPv6 tego samego znanego PID, protokołu i portu może być prezentowana
 jako `bind="*"`; `group_dual_stack=False` zachowuje osobne adresy.
 Błędy odczytu zgłaszają `ListenerScanError`, a odmowa dostępu

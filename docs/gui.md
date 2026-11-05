@@ -35,6 +35,10 @@ Inspektor znajduje się obok tabeli, a przy węższym oknie przechodzi pod nią.
 Interfejs odróżnia pierwszy odczyt, brak wyników, brak dopasowań, dane częściowe
 i błąd. Raport odmowy uprawnień nie oznacza braku portów.
 
+Connectory Cloudflare Tunnel są prezentowane także bez znanych tras: z PID,
+statusem konfiguracji, metryk i liczbą połączeń. Argumenty procesu są tablicą JSON;
+„Brak argumentów” odróżnia pustą listę od niedostępnych danych.
+
 ## Kubernetes
 
 Dodaj `--kube` przy uruchomieniu lub użyj przełącznika „Włącz Kubernetes”
@@ -56,7 +60,10 @@ nie wchodzą do tej tablicy; przy błędzie źródła wynik może być częścio
 **Kończenie procesu** wymaga weryfikacji i potwierdzenia w dialogu. Cel jest
 przechowywany pod krótkotrwałym, jednorazowym tokenem. Zmiana zaznaczenia
 nie zmienia celu dialogu; przed sygnałem core ponownie sprawdza jego tożsamość
-i reguły. Force jest domyślnie wyłączone i wymaga osobnej zgody.
+i reguły. Force jest domyślnie wyłączone. Po timeoutcie dialog pozwala osobno
+potwierdzić eskalację, również gdy proces zamknął port. Na Windows dialog
+informuje o twardym zakończeniu i nie oferuje pozornego łagodnego trybu.
+Anulowanie usuwa zapisany cel, a timer usuwa nieużyte zgody po 120 sekundach.
 [Allowlista i reguły operacji](cli.md#kończenie-procesu).
 
 Znane flagi uwierzytelniające są maskowane w argumentach i eksporcie;
@@ -105,3 +112,8 @@ Wersje zależności znajdują się w [package.json](../frontend/package.json),
 
 Dalsze informacje: [rozwój i testy](development.md) · [architektura](architecture.md) ·
 [identyfikacja wizualna](brand/README.md).
+
+Kontrakt mostka obejmuje typowane odpowiedzi i strukturalne kody błędów
+(`stale_snapshot`, `invalid_filter`, `consent_expired`, `termination_pending`,
+`busy` itd.). Pola raportów `last_success_at`, `age_seconds`, `stale` i `refreshing`
+pozwalają prezentować świeżość bez parsowania komunikatów.

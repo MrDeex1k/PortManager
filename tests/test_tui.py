@@ -292,6 +292,11 @@ def test_kill_cancel_and_default_focus_never_signal(
 def test_kill_confirms_captured_identity_despite_refresh(
     source: Mock, monkeypatch: pytest.MonkeyPatch, force: bool
 ) -> None:
+    from types import SimpleNamespace
+
+    from portscanner.tui import dialogs
+
+    monkeypatch.setattr(dialogs, "os", SimpleNamespace(name="posix"))
     target = KillTarget(
         43,
         100.0,
@@ -429,5 +434,67 @@ def test_kube_is_forwarded_to_worker(source: Mock) -> None:
         async with app.run_test():
             await app.workers.wait_for_complete()
             source.assert_called_with(kube=True, kube_discovery=app._kube_discovery)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+def test_timeout_opens_new_consent_after_port_disappears(source, monkeypatch, confirm):
+    from portscanner.core.actions import TerminationPending
+
+    target = KillTarget(43, 100.0, "python", "/bin/python", ("python", "server.py"))
+    pending = TerminationPending(target)
+    resume = Mock(return_value="terminated")
+    monkeypatch.setattr(pending.pending, "resume", resume)
+    monkeypatch.setattr(tui, "prepare_kill", Mock(return_value=target))
+    monkeypatch.setattr(tui, "terminate_target", Mock(side_effect=pending))
+
+    async def scenario():
+        app = PortScannerApp()
+        async with app.run_test(size=(100, 32)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("k")
+            await wait_until(lambda: isinstance(app.screen, KillScreen))
+            await pilot.pause()
+            await pilot.click("#confirm")
+            await wait_until(
+                lambda: isinstance(app.screen, KillScreen) and app.screen.escalation
+            )
+            source.return_value = replace(source.return_value, ports=())
+            app.action_refresh()
+            await wait_until(lambda: not app._refreshing)
+            await pilot.pause()
+            resume.assert_not_called()
+            assert app.screen.focused is not None and app.screen.focused.id == "cancel"
+            await pilot.click("#confirm" if confirm else "#cancel")
+            await app.workers.wait_for_complete()
+            assert resume.call_count == int(confirm)
+
+    asyncio.run(scenario())
+
+
+def test_windows_dialog_explains_hard_termination(source, monkeypatch):
+    from types import SimpleNamespace
+
+    from portscanner.tui import dialogs
+
+    monkeypatch.setattr(dialogs, "os", SimpleNamespace(name="nt"))
+    target = KillTarget(43, 100.0, "python", "C:/python.exe", ("python", "server.py"))
+    monkeypatch.setattr(tui, "prepare_kill", Mock(return_value=target))
+
+    async def scenario():
+        app = PortScannerApp()
+        async with app.run_test(size=(100, 32)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.press("k")
+            await wait_until(lambda: isinstance(app.screen, KillScreen))
+            await pilot.pause()
+            assert not list(app.screen.query("#force"))
+            assert any(
+                "twarde zakończenie" in str(widget.content)
+                for widget in app.screen.query(Static)
+            )
+            await pilot.click("#cancel")
+            await app.workers.wait_for_complete()
 
     asyncio.run(scenario())

@@ -99,3 +99,22 @@ zgodnej z vue-tsc; zmianę tych zależności sprawdza kontrola typów, build i s
 Po zainstalowaniu Lefthook uruchom `lefthook install` z katalogu repozytorium.
 Hooki sprawdzają format commitów i Ruff; pełny zestaw powyższych kontroli
 uruchamia się osobno. [Format Conventional Commits](conventional-commits.md).
+
+## Kontrakty modeli i mostka
+
+Po zmianie modeli core lub `portscanner/gui/contracts.py` wygeneruj typy:
+
+```bash
+uv run --locked python scripts/generate_contracts.py
+```
+
+Generator wymaga zainstalowanych narzędzi developmentu Python i frontendu.
+Test `tests/test_contracts.py` sprawdza brak rozbieżności. Nie edytuj ręcznie
+`core_payloads.py`, `contracts.generated.ts` ani tabeli Unicode `casefold.ts`. Przypadki filtrów Python/TypeScript
+są współdzielone w `tests/fixtures/filter_cases.json`.
+
+Smoke eskalacji w natywnym GUI na macOS (własny proces zamyka port po SIGTERM):
+
+```bash
+uv run --locked --extra gui python scripts/smoke_gui.py --escalation
+```

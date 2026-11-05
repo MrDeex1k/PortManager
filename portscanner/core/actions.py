@@ -4,7 +4,10 @@ import math
 import os
 import re
 import socket
+import threading
+import time
 from dataclasses import dataclass
+from typing import Literal
 
 import psutil
 
@@ -157,20 +160,100 @@ def prepare_kill(pid: int) -> KillTarget:
         raise ProcessActionError(
             "Brak uprawnień do pełnej weryfikacji procesu."
         ) from exc
-    except (psutil.Error, OSError) as exc:
+    except (psutil.Error, OSError, RuntimeError) as exc:
+        if isinstance(exc, ProcessActionError):
+            raise
         raise ProcessActionError("Nie udało się zweryfikować procesu.") from exc
+
+
+ActionStatus = Literal["terminated", "already_exited"]
+
+
+class PendingTermination:
+    """Single-use continuation, created only after a verified terminate timed out."""
+
+    def __init__(self, target: KillTarget) -> None:
+        self.target = target
+        self._deadline = time.monotonic() + 120.0
+        self._lock = threading.Lock()
+        self._used = False
+
+    def resume(self, *, timeout: float = 3.0) -> ActionStatus:
+        """Caller must obtain a new explicit consent for kill before calling."""
+        _validate_timeout(timeout)
+        with self._lock:
+            if self._used or time.monotonic() >= self._deadline:
+                raise ProcessActionError(
+                    "Potwierdzenie eskalacji wygasło lub zostało użyte."
+                )
+            self._used = True
+        return _escalate(self.target, timeout)
+
+
+class TerminationPending(ProcessActionError):
+    def __init__(self, target: KillTarget) -> None:
+        super().__init__(
+            "Wysłano terminate, ale proces nie zakończył się przed timeoutem. "
+            "Wymuszenie wymaga nowego potwierdzenia."
+        )
+        self.pending = PendingTermination(target)
+
+
+def _validate_timeout(timeout: float) -> None:
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Timeout musi być dodatni i skończony")
+
+
+def _escalate(target: KillTarget, timeout: float) -> ActionStatus:
+    try:
+        # Only a continuation of an already verified and signalled operation
+        # may omit the socket check. Ownership and identity are checked again.
+        process, current = _inspect(target.pid, require_socket=False)
+        if current != target:
+            raise ProcessActionError("Tożsamość procesu zmieniła się przed eskalacją.")
+        process.kill()
+        process.wait(timeout=timeout)
+        return "terminated"
+    except psutil.NoSuchProcess as exc:
+        # _inspect also reads ancestors. Their disappearance must not be
+        # mistaken for completion of our target.
+        try:
+            candidate = psutil.Process(target.pid)
+            gone = (
+                candidate.create_time() != target.created_at
+                or not candidate.is_running()
+            )
+        except psutil.NoSuchProcess:
+            gone = True
+        except (psutil.Error, OSError, RuntimeError):
+            gone = False
+        if gone:
+            return "already_exited"
+        raise ProcessActionError(
+            "Nie udało się zweryfikować zakończenia procesu."
+        ) from exc
+    except psutil.TimeoutExpired as exc:
+        raise ProcessActionError(
+            "Proces nie zakończył się po kill przed timeoutem."
+        ) from exc
+    except (psutil.AccessDenied, PermissionError) as exc:
+        raise ProcessActionError("Brak uprawnień do zakończenia procesu.") from exc
+    except (psutil.Error, OSError, RuntimeError) as exc:
+        if isinstance(exc, ProcessActionError):
+            raise
+        raise ProcessActionError("Nie udało się zakończyć procesu.") from exc
 
 
 def terminate_target(
     target: KillTarget, *, force: bool = False, timeout: float = 3.0
-) -> None:
-    """Po zgodzie UI zweryfikuj dane ponownie, terminate, wait, opcjonalnie kill.
+) -> ActionStatus:
+    """Verify consent, terminate, wait and optionally escalate.
 
-    Na Windows terminate także jest twardym zakończeniem. Force upoważnia tylko
-    do eskalacji po timeout; nie omija polityki. Nie wznawiamy zakończonego procesu.
+    On Windows terminate is already a hard termination. A timeout without
+    force returns a single-use continuation via TerminationPending; the UI
+    must request fresh consent before resuming it, even if the port is gone.
     """
-    if not math.isfinite(timeout) or timeout <= 0:
-        raise ValueError("Timeout musi być dodatni i skończony")
+    _validate_timeout(timeout)
     try:
         process, current = _inspect(target.pid)
         if current != target:
@@ -182,26 +265,18 @@ def terminate_target(
             process.wait(timeout=timeout)
         except psutil.TimeoutExpired as exc:
             if not force:
-                raise ProcessActionError(
-                    "Wysłano terminate, ale proces nie zakończył się przed timeoutem. "
-                    "Eskalacja wymaga --force i ponownego potwierdzenia."
-                ) from exc
-            # Proces podczas zamykania mógł już zwolnić gniazda.
-            process, current = _inspect(target.pid, require_socket=False)
-            if current != target:
-                raise ProcessActionError(
-                    "Tożsamość procesu zmieniła się przed eskalacją."
-                ) from exc
-            process.kill()
-            process.wait(timeout=timeout)
+                raise TerminationPending(target) from exc
+            return _escalate(target, timeout)
+        except psutil.NoSuchProcess:
+            return "already_exited"
+        return "terminated"
     except psutil.NoSuchProcess as exc:
-        # Nie sygnalizujemy sukcesu dla PID, którego nie udało się zweryfikować.
-        raise ProcessActionError("Proces zakończył się podczas operacji.") from exc
-    except psutil.TimeoutExpired as exc:
         raise ProcessActionError(
-            "Proces nie zakończył się po kill przed timeoutem."
+            "Proces zakończył się przed wysłaniem sygnału."
         ) from exc
     except (psutil.AccessDenied, PermissionError) as exc:
         raise ProcessActionError("Brak uprawnień do zakończenia procesu.") from exc
-    except (psutil.Error, OSError) as exc:
+    except (psutil.Error, OSError, RuntimeError) as exc:
+        if isinstance(exc, ProcessActionError):
+            raise
         raise ProcessActionError("Nie udało się zakończyć procesu.") from exc

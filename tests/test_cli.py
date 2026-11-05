@@ -257,7 +257,9 @@ def test_force_still_confirms_and_uses_prepared_identity(
     assert result.exit_code == 0, result.output
     assert "python" in result.stderr and "server.py" in result.stderr
     assert "private-value" not in result.output and "***" in result.stderr
-    assert "po timeout także kill" in result.stderr
+    assert (
+        "twarde zakończenie" if cli.os.name == "nt" else "po timeout także kill"
+    ) in result.stderr
     action[1].assert_called_once_with(action[0].return_value, force=True, timeout=3.0)
     source.assert_not_called()
 
@@ -270,3 +272,19 @@ def test_blocked_kill_never_prompts_or_terminates(
     assert result.exit_code == 1 and "Proces chroniony" in result.stderr
     assert "Zakończyć" not in result.stderr
     action[1].assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "answer,called", [("y\n", True), ("n\n", False), ("\n", False), ("", False)]
+)
+def test_timeout_requires_a_second_consent(action, monkeypatch, answer, called):
+    from portscanner.core.actions import TerminationPending
+
+    pending = TerminationPending(action[0].return_value)
+    resume = Mock(return_value="terminated")
+    monkeypatch.setattr(pending.pending, "resume", resume)
+    action[1].side_effect = pending
+    result = runner.invoke(cli.app, ["--cli", "--kill", "42"], input="y\n" + answer)
+    assert result.exit_code == (0 if called else 1)
+    assert resume.call_count == int(called)
+    assert "Wymusić" in result.output

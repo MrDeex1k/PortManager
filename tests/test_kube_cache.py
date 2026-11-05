@@ -57,6 +57,8 @@ def test_slow_cluster_does_not_block_local_rows_or_overlap(reader: Mock) -> None
         assert entered.wait(1)
         assert result.items[0].kubernetes[0].kind == "port-forward"
         assert result.report.status == "partial"
+        assert result.report.refreshing is True
+        assert result.report.last_success_at is None
         discovery.collect((), IPS)
         assert reader.call_count == 1
     finally:
@@ -75,6 +77,10 @@ def test_ttl_does_not_cache_local_sessions_and_reports_age(reader: Mock) -> None
         result = discovery.collect((row,), IPS)
         assert len(result.items) == 2
         assert "12 s" in (result.report.message or "")
+        assert result.report.age_seconds == 12
+        assert result.report.last_success_at is not None
+        assert result.report.stale is False
+        assert result.report.refreshing is False
         assert discovery.collect((), IPS).items == (NODEPORT,)
         reader.assert_called_once_with(IPS, timeout=3.0)
         clock.return_value = 130.0
@@ -106,6 +112,9 @@ def test_failed_refresh_retains_last_success_then_empty_success_clears_it(
         assert result.report.status == "partial"
         assert "Timeout" in (result.report.message or "")
         assert "30 s" in (result.report.message or "")
+        assert result.report.age_seconds == 30
+        assert result.report.stale is True
+        assert result.report.refreshing is False
         clock.return_value = 60.0
         discovery.collect((), IPS)
         finish(discovery)

@@ -20,4 +20,5 @@ def test_socket_without_visible_process_can_be_serialized() -> None:
         "tags": [],
         "origin": "socket",
         "kubernetes": [],
+        "udp_peer_status": "not_applicable",
     }

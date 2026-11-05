@@ -10,6 +10,8 @@ from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
+import psutil
+
 from portscanner.core.actions import KillTarget, terminate_target
 from portscanner.core.model import (
     DockerPort,
@@ -20,6 +22,7 @@ from portscanner.core.model import (
     ServiceTag,
     Snapshot,
     SourceReport,
+    TunnelInfo,
     TunnelRoute,
 )
 from portscanner.gui import app as gui_app
@@ -35,7 +38,7 @@ def _wait_js(window: object, expression: str, *, timeout: float = 8.0) -> object
     raise AssertionError(f"Timeout oczekiwania na warunek JS: {expression}")
 
 
-def _listener() -> subprocess.Popen[str]:
+def _listener(*, escalation: bool = False) -> subprocess.Popen[str]:
     script = (
         "import socket, sys\n"
         "with socket.socket() as server:\n"
@@ -44,6 +47,14 @@ def _listener() -> subprocess.Popen[str]:
         " print(server.getsockname()[1], flush=True)\n"
         " sys.stdin.read()\n"
     )
+    if escalation:
+        script = script.replace(
+            "import socket, sys", "import socket, sys, signal"
+        ).replace(
+            " print(server.getsockname()[1], flush=True)",
+            " signal.signal(signal.SIGTERM, lambda *_: server.close())\n"
+            " print(server.getsockname()[1], flush=True)",
+        )
     return subprocess.Popen(
         [sys.executable, "-u", "-c", script],
         stdin=subprocess.PIPE,
@@ -57,7 +68,8 @@ def main() -> None:
     webview = importlib.import_module("webview")
     original_start = webview.start
     failures: list[str] = []
-    child = _listener()
+    escalation = "--escalation" in sys.argv
+    child = _listener(escalation=escalation)
     assert child.stdout is not None
     port_text = child.stdout.readline().strip()
     if not port_text.isdigit():
@@ -97,7 +109,16 @@ def main() -> None:
                 else (),
             )
         ]
-        if child.poll() is None:
+        has_port = child.poll() is None
+        if has_port and escalation:
+            try:
+                has_port = any(
+                    c.status == psutil.CONN_LISTEN
+                    for c in psutil.Process(child.pid).net_connections()
+                )
+            except psutil.NoSuchProcess:
+                has_port = False
+        if has_port:
             entries.append(
                 PortEntry(
                     "tcp",
@@ -116,7 +137,11 @@ def main() -> None:
             ports=tuple(entries),
             local_ips=(LocalIP("lo0", "127.0.0.1", "ipv4"),),
             docker=(mapping,),
-            tunnels=(),
+            tunnels=(
+                TunnelInfo(
+                    9000, config_status="remote", metrics_status="ok", connections=4
+                ),
+            ),
             reports=(
                 SourceReport("listeners", "ok"),
                 SourceReport("processes", "partial", "Kontrolowany raport testowy."),
@@ -143,7 +168,7 @@ def main() -> None:
             forced_refreshes.append(request_id)
             if len(forced_refreshes) == 1:
                 return {"ok": False, "busy": True, "request_id": request_id}
-        return read_snapshot(request_id, refresh_kube)
+        return dict(read_snapshot(request_id, refresh_kube))
 
     with tempfile.TemporaryDirectory(prefix="portmanager-gui-smoke-") as directory:
         export_path = Path(directory) / "visible.json"
@@ -160,6 +185,11 @@ def main() -> None:
                 assert window.evaluate_js("window.__smokeTicks") >= 4
 
                 _wait_js(window, "document.querySelectorAll('tbody tr').length === 2")
+                _wait_js(
+                    window,
+                    "document.querySelector('[aria-label=\"Connectory tuneli\"]')"
+                    "?.innerText.includes('remote')",
+                )
                 assert window.evaluate_js(
                     "document.body.innerText.includes('Migawka jest częściowa')"
                 )
@@ -286,6 +316,10 @@ def main() -> None:
                 )
                 _wait_js(window, "document.querySelector('dialog[open]') === null")
                 assert child.poll() is None, "Anulowanie zakończyło proces"
+                deadline = time.monotonic() + 2
+                while api._targets and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                assert not api._targets, "Anulowana zgoda pozostaje w backendzie"
 
                 window.evaluate_js(
                     "document.querySelector('[data-testid=kill-open]').click()"
@@ -297,6 +331,24 @@ def main() -> None:
                 ticks_before = window.evaluate_js("window.__smokeTicks")
                 time.sleep(0.3)
                 assert window.evaluate_js("window.__smokeTicks") > ticks_before + 4
+                if escalation:
+                    _wait_js(
+                        window,
+                        "document.querySelector('dialog[open]')"
+                        "?.innerText.includes('Wymusić zakończenie')",
+                    )
+                    assert child.poll() is None, (
+                        "Eskalacja nie może poprzedzać drugiej zgody"
+                    )
+                    _wait_js(
+                        window, "document.querySelectorAll('tbody tr').length === 0"
+                    )
+                    assert not psutil.Process(child.pid).net_connections(), (
+                        "Port powinien być zamknięty"
+                    )
+                    window.evaluate_js(
+                        "document.querySelector('[data-testid=kill-confirm]').click()"
+                    )
                 deadline = time.monotonic() + 8
                 while time.monotonic() < deadline and child.poll() is None:
                     time.sleep(0.08)
@@ -322,6 +374,11 @@ def main() -> None:
                             "selection": "ok",
                             "export": "ok",
                             "kill_cancel_confirm": "ok",
+                            "remote_connector": "ok",
+                            "cancel_releases_consent": "ok",
+                            "timeout_escalation": "ok"
+                            if escalation
+                            else "not_requested",
                             "close": "ok",
                         }
                     ),
@@ -344,7 +401,7 @@ def main() -> None:
                 gui_app.launch()
         finally:
             if child.poll() is None:
-                child.terminate()
+                child.kill()
                 child.wait(timeout=3)
     if failures:
         raise SystemExit("GUI smoke failed: " + "; ".join(failures))

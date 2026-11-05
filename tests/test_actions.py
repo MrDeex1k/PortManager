@@ -204,3 +204,65 @@ def test_kubectl_allowlist_is_specific_to_port_forward(
     else:
         with pytest.raises(actions.ProcessActionError):
             actions.prepare_kill(PID)
+
+
+def test_timeout_continuation_works_after_socket_closes(process):
+    target = actions.prepare_kill(PID)
+    process.wait.side_effect = [psutil.TimeoutExpired(0.1), 0]
+    with pytest.raises(actions.TerminationPending) as error:
+        actions.terminate_target(target, timeout=0.1)
+    process.net_connections.return_value = []
+    assert error.value.pending.resume(timeout=0.1) == "terminated"
+    process.terminate.assert_called_once()
+    process.kill.assert_called_once()
+    with pytest.raises(actions.ProcessActionError, match="użyte"):
+        error.value.pending.resume()
+    assert process.kill.call_count == 1
+
+
+@pytest.mark.parametrize("change", ["pid", "argv", "owner", "namespace", "expiry"])
+def test_continuation_rejects_changed_or_expired_target(process, monkeypatch, change):
+    target = actions.prepare_kill(PID)
+    process.wait.side_effect = psutil.TimeoutExpired(0.1)
+    with pytest.raises(actions.TerminationPending) as error:
+        actions.terminate_target(target, timeout=0.1)
+    pending = error.value.pending
+    process.net_connections.return_value = []
+    if change == "pid":
+        process.create_time.return_value = 456.0
+    elif change == "argv":
+        process.cmdline.return_value = ["python3", "other.py"]
+    elif change in ("owner", "namespace"):
+        monkeypatch.setattr(
+            actions,
+            "_same_owner" if change == "owner" else "_same_namespaces",
+            lambda pid: False,
+        )
+    else:
+        monkeypatch.setattr(actions.time, "monotonic", lambda: pending._deadline)
+    with pytest.raises(actions.ProcessActionError):
+        pending.resume()
+    process.kill.assert_not_called()
+
+
+def test_exit_after_timeout_is_not_failure(process, monkeypatch):
+    target = actions.prepare_kill(PID)
+    process.wait.side_effect = psutil.TimeoutExpired(0.1)
+    inspect = Mock(side_effect=[(process, target), psutil.NoSuchProcess(PID)])
+    monkeypatch.setattr(actions, "_inspect", inspect)
+    process.is_running.return_value = False
+    assert actions.terminate_target(target, force=True, timeout=0.1) == "already_exited"
+    process.kill.assert_not_called()
+
+
+def test_missing_ancestor_does_not_report_live_target_as_exited(process, monkeypatch):
+    target = actions.prepare_kill(PID)
+    process.wait.side_effect = psutil.TimeoutExpired(0.1)
+    monkeypatch.setattr(
+        actions,
+        "_inspect",
+        Mock(side_effect=[(process, target), psutil.NoSuchProcess(123)]),
+    )
+    with pytest.raises(actions.ProcessActionError, match="zweryfikować zakończenia"):
+        actions.terminate_target(target, force=True, timeout=0.1)
+    process.kill.assert_not_called()

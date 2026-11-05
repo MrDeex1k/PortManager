@@ -102,7 +102,9 @@ wykonuje tej komendy. Politykę i pełną allowlistę opisuje [CLI](cli.md).
    Core ponownie weryfikuje tożsamość i politykę przed sygnałem.
 4. Checkbox `--force` jest domyślnie wyłączony. Zaznaczenie zezwala na `kill`
    dopiero po timeout `terminate` i kolejnej weryfikacji. Na Windows także
-   `terminate` kończy proces twardo. Domyślny timeout oczekiwania to 3 s.
+   `terminate` kończy proces twardo; dialog to opisuje i ukrywa checkbox.
+   Domyślny timeout oczekiwania to 3 s. Bez force po timeoutcie pojawia się
+   nowy dialog zgody na kill, ważny 120 sekund, także po zamknięciu portu.
 5. Wynik operacji jest widoczny w pasku komunikatów; po sukcesie zlecane jest
    odświeżenie. Błąd nie zamyka TUI. W czasie weryfikacji i kończenia nie można
    zlecić kolejnego kill ani wyjść przez `q`; filtr i nawigacja pozostają aktywne.

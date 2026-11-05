@@ -35,7 +35,14 @@ import AppIcon from './components/AppIcon.vue'
 import PortInspector from './components/PortInspector.vue'
 import { desktopBridge, getAppInfo } from './desktop'
 import type { KillTargetView, SnapshotSuccess } from './desktop'
-import { filterPreview, previewLocalIPs, previewPorts, previewReports } from './preview'
+import {
+  filterPreview,
+  previewLocalIPs,
+  previewPorts,
+  previewReports,
+  previewTunnels,
+} from './preview'
+import { formatArguments } from './presentation'
 import type { PortRow, ProtocolFilter, SourceFilter } from './types'
 
 const bridgeReady = ref(Boolean(desktopBridge()))
@@ -50,7 +57,7 @@ const selectedId = ref<string | null>(null)
 const searchInput = ref<HTMLInputElement | null>(null)
 const helpDialog = ref<HTMLDialogElement | null>(null)
 const killDialog = ref<HTMLDialogElement | null>(null)
-const pendingKill = ref<{ token: string; target: KillTargetView } | null>(null)
+const pendingKill = ref<{ token: string; target: KillTargetView; escalation: boolean } | null>(null)
 const forceKill = ref(false)
 const operationBusy = ref(false)
 const notice = ref('')
@@ -95,6 +102,9 @@ watch(snapshotQuery.data, (value) => {
 
 const ports = computed(() => snapshot.value?.ports ?? previewPorts)
 const localIps = computed(() => snapshot.value?.local_ips ?? previewLocalIPs)
+const connectors = computed(
+  () => snapshot.value?.tunnels ?? (bridgeReady.value ? [] : previewTunnels),
+)
 const reports = computed(() => snapshot.value?.reports ?? previewReports)
 const kubeReport = computed(() => reports.value.find((report) => report.source === 'kubernetes'))
 const isPreview = computed(() => !bridgeReady.value)
@@ -253,7 +263,11 @@ async function requestKill(row: PortRow) {
   try {
     const result = await desktopBridge()!.prepare_process(row.pid)
     if (!result.ok) return showNotice(result.message ?? 'Procesu nie można zakończyć.')
-    pendingKill.value = { token: result.token, target: result.target }
+    pendingKill.value = {
+      token: result.token,
+      target: result.target,
+      escalation: result.escalation,
+    }
     forceKill.value = false
     killDialog.value?.showModal()
   } catch (error) {
@@ -267,7 +281,17 @@ async function confirmKill() {
   if (!consent) return
   operationBusy.value = true
   try {
-    const result = await desktopBridge()!.terminate_process(consent.token, forceKill.value)
+    const result = await desktopBridge()!.terminate_process(
+      consent.token,
+      consent.escalation || forceKill.value,
+    )
+    if (!result.ok && result.continuation) {
+      pendingKill.value = result.continuation
+      forceKill.value = false
+      showNotice(result.message)
+      return
+    }
+    pendingKill.value = null
     killDialog.value?.close()
     pendingKill.value = null
     if (!result.ok) showNotice(result.message ?? 'Nie udało się zakończyć procesu.')
@@ -282,6 +306,17 @@ async function confirmKill() {
     showNotice(rejectedBridgeMessage(error, 'Połączenie zostało przerwane podczas operacji'))
   } finally {
     operationBusy.value = false
+  }
+}
+async function cancelKill() {
+  const consent = pendingKill.value
+  pendingKill.value = null
+  if (consent) {
+    try {
+      await desktopBridge()?.cancel_process(consent.token)
+    } catch {
+      showNotice('Nie udało się unieważnić zgody; wygaśnie automatycznie.')
+    }
   }
 }
 function onBridgeReady() {
@@ -627,6 +662,23 @@ onBeforeUnmount(() => {
           >
         </div>
       </main>
+      <section
+        v-if="connectors.length"
+        class="border-t border-line px-6 py-3"
+        aria-label="Connectory tuneli"
+      >
+        <h2 class="eyebrow">Connectory Cloudflare Tunnel</h2>
+        <p v-for="connector in connectors" :key="connector.pid" class="mt-2 text-xs text-muted">
+          PID {{ connector.pid }} · konfiguracja: {{ connector.config_status }} · metryki:
+          {{ connector.metrics_status }} · połączenia: {{ connector.connections ?? '—' }} · reguły:
+          {{ connector.routes.length }}
+        </p>
+      </section>
+      <p v-if="kubeReport?.last_success_at" class="px-6 text-xs text-muted">
+        Kubernetes: ostatni udany odczyt {{ kubeReport.last_success_at }}
+        <span v-if="kubeReport.stale"> · dane nieaktualne</span>
+        <span v-if="kubeReport.refreshing"> · odświeżanie w tle</span>
+      </p>
       <footer class="statusbar">
         <span
           >{{ appQuery.data.value?.name ?? 'PortManager' }} {{ appQuery.data.value?.version }}</span
@@ -638,18 +690,30 @@ onBeforeUnmount(() => {
         <Check :size="15" class="text-accent" />{{ notice }}
       </div></Transition
     >
-    <dialog ref="killDialog" class="help-dialog" @close="pendingKill = null">
+    <dialog ref="killDialog" class="help-dialog" @close="cancelKill">
       <template v-if="pendingKill"
         ><p class="eyebrow text-accent">Potwierdzenie operacji</p>
-        <h2 class="mt-4 text-xl font-semibold">Zakończyć {{ pendingKill.target.name }}?</h2>
+        <h2 class="mt-4 text-xl font-semibold">
+          {{ pendingKill.escalation ? 'Wymusić zakończenie' : 'Zakończyć' }}
+          {{ pendingKill.target.name }}?
+        </h2>
         <p class="mt-3 text-xs leading-6 text-muted">
           Zgoda dotyczy wyłącznie zweryfikowanego procesu PID {{ pendingKill.target.pid }}. Przed
           wysłaniem sygnału jego tożsamość zostanie sprawdzona ponownie.
         </p>
         <pre
           class="mt-5 max-h-32 overflow-auto whitespace-pre-wrap break-all border-l-2 border-line pl-3 font-mono text-xs leading-6 text-soft"
-          >{{ pendingKill.target.cmdline.join(' ') }}</pre>
-        <label class="mt-5 flex items-start gap-3 text-xs text-muted"
+          >{{ formatArguments(pendingKill.target.cmdline) }}</pre>
+        <p v-if="pendingKill.escalation" class="mt-5 text-xs text-muted">
+          Proces nadal działa po terminate. Potwierdzenie wyśle kill po ponownej weryfikacji.
+        </p>
+        <p
+          v-else-if="appQuery.data.value?.termination_mode === 'hard'"
+          class="mt-5 text-xs text-muted"
+        >
+          Windows: ta operacja natychmiast wymusza zakończenie procesu.
+        </p>
+        <label v-else class="mt-5 flex items-start gap-3 text-xs text-muted"
           ><input v-model="forceKill" data-testid="force" type="checkbox" class="mt-0.5" /><span
             >Jeśli łagodne zakończenie przekroczy 3 sekundy, zezwól na wymuszenie.</span
           ></label

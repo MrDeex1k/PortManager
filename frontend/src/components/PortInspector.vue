@@ -2,6 +2,7 @@
 import { ArrowRight, Box, Copy, Globe2, LockKeyhole, OctagonX, Terminal, X } from 'lucide-vue-next'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { PortRow } from '../types'
+import { formatArguments, dockerKey } from '../presentation'
 
 const props = defineProps<{ port: PortRow; desktop: boolean; busy: boolean }>()
 defineEmits<{ close: []; requestKill: [] }>()
@@ -66,6 +67,9 @@ async function copyAddress() {
         <dt class="text-muted">PID hosta</dt>
         <dd class="font-mono">{{ port.pid ?? '—' }}</dd>
       </dl>
+      <p v-if="port.udp_peer_status === 'unknown'" class="mt-4 text-xs text-muted">
+        System nie udostępnia peera UDP. Ten endpoint może należeć do klienta.
+      </p>
       <button class="secondary-button mt-5 w-full justify-center" @click="copyAddress">
         <Copy :size="13" />Kopiuj adres
       </button>
@@ -80,7 +84,7 @@ async function copyAddress() {
         <p class="mt-4 text-[10px] uppercase tracking-widest text-muted">Argumenty</p>
         <pre
           class="mt-2 whitespace-pre-wrap break-all border-l-2 border-line pl-3 font-mono text-xs leading-6 text-soft"
-          >{{ port.process?.cmdline?.join(' ') || 'Niedostępne' }}</pre>
+          >{{ formatArguments(port.process?.cmdline) }}</pre>
         <button
           v-if="desktop && port.pid !== null"
           class="danger-button mt-5 w-full justify-center"
@@ -100,7 +104,7 @@ async function copyAddress() {
         <h3 class="eyebrow flex items-center gap-2"><Box :size="13" />Docker / Compose</h3>
         <div
           v-for="item in port.docker"
-          :key="`${item.container_id}-${item.container_port}`"
+          :key="dockerKey(item)"
           class="mt-4 border-l border-line pl-3"
         >
           <p class="text-sm">{{ item.container_name }}</p>

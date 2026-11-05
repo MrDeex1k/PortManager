@@ -1,6 +1,7 @@
 """Kontrakt odczytu, filtrowania i grupowania gniazd systemowych."""
 
 import socket
+import sys
 from typing import NamedTuple
 from unittest.mock import Mock
 
@@ -89,7 +90,15 @@ def test_udp_uses_peer_not_tcp_state(monkeypatch: pytest.MonkeyPatch) -> None:
         status=psutil.CONN_NONE,
     )
     source(monkeypatch, bound, bound._replace(raddr=Address("127.0.0.1", 53)))
-    assert collect_listeners() == [PortEntry("udp", "127.0.0.1", 60000, 42)]
+    assert collect_listeners() == [
+        PortEntry(
+            "udp",
+            "127.0.0.1",
+            60000,
+            42,
+            udp_peer_status="unknown" if sys.platform == "win32" else "absent",
+        )
+    ]
 
 
 @pytest.mark.parametrize(
@@ -208,3 +217,49 @@ def test_system_errors_have_a_core_exception(
         collect_listeners()
     assert not isinstance(raised.value, ListenerAccessDenied)
     assert raised.value.__cause__ is error
+
+
+def test_windows_udp_unknown_owner_and_peer(monkeypatch):
+    from types import SimpleNamespace
+
+    from portscanner.core import listeners
+
+    monkeypatch.setattr(listeners, "sys", SimpleNamespace(platform="win32"))
+    connections = [
+        SimpleNamespace(
+            family=family,
+            type=socket.SOCK_DGRAM,
+            status=psutil.CONN_NONE,
+            laddr=SimpleNamespace(ip=ip, port=5353),
+            raddr=(),
+            pid=0,
+        )
+        for family, ip in [(socket.AF_INET, "0.0.0.0"), (socket.AF_INET6, "::")]
+    ]
+    monkeypatch.setattr(psutil, "net_connections", Mock(return_value=connections))
+    rows = collect_listeners()
+    assert len(rows) == 2
+    assert all(row.pid is None and row.udp_peer_status == "unknown" for row in rows)
+
+
+def test_accessible_process_fallback_keeps_rows_when_other_process_denied(monkeypatch):
+    from types import SimpleNamespace
+
+    from portscanner.core.listeners import collect_accessible_listeners
+
+    denied, allowed = Mock(), Mock()
+    denied.net_connections.side_effect = psutil.AccessDenied(1)
+    allowed.pid = 42
+    allowed.net_connections.return_value = [
+        SimpleNamespace(
+            family=socket.AF_INET6,
+            type=socket.SOCK_STREAM,
+            status=psutil.CONN_LISTEN,
+            laddr=SimpleNamespace(ip="::1", port=8080),
+            raddr=(),
+        )
+    ]
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([denied, allowed]))
+    result = collect_accessible_listeners()
+    assert result.report.status == "partial"
+    assert result.items == (PortEntry("tcp", "::1", 8080, 42),)

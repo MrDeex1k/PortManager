@@ -216,6 +216,7 @@ def test_snapshot_optin_and_bridge_serialization(
     collect.assert_called_once_with((), IPS, timeout=3.0)
     api = DesktopAPI(collector=lambda: result)
     payload = api.read_snapshot(1)
+    assert payload["ok"] is True
     assert payload["ports"][0]["kubernetes"][0]["kind"] == "nodeport"
     assert payload["ports"][0]["pid"] is None
 

@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 from dataclasses import asdict
 from typing import Annotated
 
@@ -11,7 +12,12 @@ from rich.table import Table
 from rich.text import Text
 
 from portscanner.core import collect_snapshot
-from portscanner.core.actions import ProcessActionError, prepare_kill, terminate_target
+from portscanner.core.actions import (
+    ProcessActionError,
+    TerminationPending,
+    prepare_kill,
+    terminate_target,
+)
 from portscanner.core.filtering import filter_entries
 from portscanner.core.ips import ExitIPError, fetch_exit_ip
 from portscanner.core.model import PortEntry, Snapshot
@@ -76,13 +82,30 @@ def _kill(pid: int, *, force: bool, timeout: float) -> None:
             + json.dumps(redact_cmdline(target.cmdline), ensure_ascii=True),
             err=True,
         )
-        operation = "terminate, a po timeout także kill" if force else "terminate"
+        operation = (
+            "twarde zakończenie na Windows"
+            if os.name == "nt"
+            else "terminate, a po timeout także kill"
+            if force
+            else "terminate"
+        )
         if not typer.confirm(
             f"Zakończyć ten proces ({operation})?", default=False, err=True
         ):
             typer.echo("Anulowano.", err=True)
             raise typer.Exit(code=1)
-        terminate_target(target, force=force, timeout=timeout)
+        try:
+            terminate_target(target, force=force, timeout=timeout)
+        except TerminationPending as pending:
+            typer.echo(str(pending), err=True)
+            if not typer.confirm(
+                "Wymusić zakończenie tego samego procesu (kill)?",
+                default=False,
+                err=True,
+            ):
+                typer.echo("Anulowano eskalację; proces może nadal działać.", err=True)
+                raise typer.Exit(code=1) from pending
+            pending.pending.resume(timeout=timeout)
     except ProcessActionError as error:
         typer.echo(_safe(str(error)), err=True)
         raise typer.Exit(code=1) from error

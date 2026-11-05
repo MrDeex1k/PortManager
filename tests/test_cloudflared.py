@@ -307,3 +307,19 @@ def test_namespace_read_error_is_not_host_match(
 ) -> None:
     monkeypatch.setattr(cf, "same_namespaces", Mock(side_effect=PermissionError()))
     assert not cf._host_namespace(42)
+
+
+def test_ingress_decodes_only_ipv6_zone_separator():
+    from portscanner.core.cloudflared import parse_ingress
+
+    routes = parse_ingress(
+        {"ingress": [{"service": "http://[fe80::1%25en0]:8080"}]}, 42
+    )
+    assert routes[0].host == "fe80::1%en0"
+    from portscanner.core.model import PortEntry, TunnelInfo
+    from portscanner.core.snapshot import merge_sources
+
+    rows = merge_sources(
+        [PortEntry("tcp", "fe80::1%en0", 8080)], (), (TunnelInfo(42, routes),)
+    )
+    assert rows[0].tunnels == routes

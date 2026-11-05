@@ -1,0 +1,243 @@
+{
+  "ports": [
+    {
+      "id": "0",
+      "proto": "tcp",
+      "bind": "::1",
+      "port": 8080,
+      "pid": 42,
+      "process": {
+        "pid": 42,
+        "status": "ok",
+        "name": "Stra\u00dfe\u03a3",
+        "cmdline": [
+          "python",
+          "a b"
+        ]
+      },
+      "docker": [
+        {
+          "container_id": "4fba1180",
+          "container_name": "web",
+          "host_bind": "::1",
+          "host_port": 8080,
+          "container_port": 80,
+          "proto": "tcp",
+          "compose_project": "demo",
+          "compose_service": "db"
+        }
+      ],
+      "tunnels": [
+        {
+          "pid": 99,
+          "hostname": "host.example",
+          "host": "localhost",
+          "port": 8080,
+          "path": null
+        }
+      ],
+      "tags": [],
+      "origin": "socket",
+      "kubernetes": [
+        {
+          "kind": "port-forward",
+          "namespace": "demo",
+          "resource": "service/web",
+          "remote_port": "http",
+          "context": "dev",
+          "node": "node1"
+        }
+      ],
+      "udp_peer_status": "not_applicable"
+    },
+    {
+      "id": "1",
+      "proto": "udp",
+      "bind": "0.0.0.0",
+      "port": 5353,
+      "pid": 7,
+      "process": {
+        "pid": 7,
+        "status": "ok",
+        "name": "DNS",
+        "cmdline": null
+      },
+      "docker": [],
+      "tunnels": [],
+      "tags": [],
+      "origin": "socket",
+      "kubernetes": [],
+      "udp_peer_status": "not_applicable"
+    },
+    {
+      "id": "2",
+      "proto": "tcp",
+      "bind": "127.0.0.1",
+      "port": 80,
+      "pid": 900,
+      "process": null,
+      "docker": [],
+      "tunnels": [],
+      "tags": [],
+      "origin": "socket",
+      "kubernetes": [],
+      "udp_peer_status": "not_applicable"
+    }
+  ],
+  "cases": [
+    {
+      "query": "::1",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "4fba1180",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "STRASSE\u03c3",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "stra\u00dfe\u03c2",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": ":8080",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": ":80",
+      "ids": [
+        "2"
+      ]
+    },
+    {
+      "query": ":8",
+      "ids": []
+    },
+    {
+      "query": "pid:42",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "pid:0",
+      "ids": []
+    },
+    {
+      "query": "pid:900",
+      "ids": [
+        "2"
+      ]
+    },
+    {
+      "query": "UDP",
+      "ids": [
+        "1"
+      ]
+    },
+    {
+      "query": "demo",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "HOST.EXAMPLE",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "service/web",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "dev",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "node1",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "http",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "socket",
+      "ids": [
+        "0",
+        "1",
+        "2"
+      ]
+    },
+    {
+      "query": "",
+      "ids": [
+        "0",
+        "1",
+        "2"
+      ]
+    },
+    {
+      "query": "  ",
+      "ids": [
+        "0",
+        "1",
+        "2"
+      ]
+    },
+    {
+      "query": ":0",
+      "ids": []
+    },
+    {
+      "query": ":65536",
+      "ids": []
+    },
+    {
+      "query": ":oops",
+      "ids": []
+    },
+    {
+      "query": "pid:",
+      "ids": []
+    },
+    {
+      "query": ":\uff18\uff10",
+      "ids": []
+    },
+    {
+      "query": "8080 socket 42",
+      "ids": [
+        "0"
+      ]
+    },
+    {
+      "query": "socket 900",
+      "ids": [
+        "2"
+      ]
+    }
+  ]
+}

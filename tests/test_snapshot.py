@@ -146,9 +146,9 @@ def test_failed_listener_read_still_exposes_docker_with_error_report(
     sources: dict[str, Mock],
 ) -> None:
     sources["collect_listeners"].side_effect = ListenerAccessDenied()
-    result = snap.collect_snapshot()
+    result = snap.collect_snapshot(accessible_fallback=False)
     assert result.ports[0].origin == "docker" and result.ports[0].pid is None
-    assert result.reports[0].status == "error"
+    assert result.reports[0].status == "unavailable"
     sources["enrich_processes"].assert_not_called()
 
 
@@ -172,3 +172,101 @@ def test_background_discovery_is_explicit_and_reuses_current_local_rows(
     assert discovery.collect.call_args.args[0][0].docker
     assert discovery.collect.call_args.kwargs == {"timeout": 3.0}
     assert result.reports[-1].source == "kubernetes"
+
+
+def test_nodeport_receives_tunnel_after_kube_merge(sources, monkeypatch):
+    route = TunnelRoute(42, "node.example.test", "192.0.2.1", 31080)
+    sources["collect_tunnels"].return_value = Collection(
+        (TunnelInfo(42, (route,), "explicit"),), SourceReport("tunnels", "ok")
+    )
+    node = PortEntry("tcp", "192.0.2.1", 31080, origin="kubernetes")
+    monkeypatch.setattr(
+        snap,
+        "collect_kube",
+        lambda *args, **kwargs: Collection(
+            (*args[0], node), SourceReport("kubernetes", "ok")
+        ),
+    )
+    result = snap.collect_snapshot(kube=True)
+    assert next(row for row in result.ports if row.origin == "kubernetes").tunnels == (
+        route,
+    )
+    from portscanner.core.filtering import filter_entries
+
+    assert filter_entries(result.ports, "node.example.test")[0].origin == "kubernetes"
+
+
+@pytest.mark.parametrize(
+    "bind,host,local,match",
+    [
+        ("*", "localhost", (), True),
+        ("::1", "localhost", (), True),
+        ("127.0.0.2", "localhost", (), True),
+        ("192.0.2.1", "localhost", (), False),
+        ("::", "127.0.0.1", (), False),
+        ("0.0.0.0", "::1", (), False),
+        ("::", "fe80::1%en0", (LocalIP("en0", "fe80::1%en0", "ipv6"),), True),
+        ("fe80::1%en1", "fe80::1%en0", (), False),
+        ("*", "remote.example", (), False),
+    ],
+)
+def test_route_address_matrix(bind, host, local, match):
+    route = TunnelRoute(1, "example.test", host, 80)
+    entries = snap.merge_sources(
+        [PortEntry("tcp", bind, 80)], (), (TunnelInfo(1, (route,)),), local
+    )
+    assert bool(entries[0].tunnels) is match
+
+
+@pytest.mark.parametrize("source", ["net_connections", "net_if_addrs"])
+def test_native_runtime_error_preserves_other_sources(sources, monkeypatch, source):
+    import psutil
+
+    from portscanner.core.ips import collect_local_ips
+    from portscanner.core.listeners import collect_listeners
+
+    monkeypatch.setattr(snap, "collect_listeners", collect_listeners)
+    monkeypatch.setattr(snap, "collect_local_ips", collect_local_ips)
+    monkeypatch.setattr(psutil, "net_connections", Mock(return_value=[]))
+    monkeypatch.setattr(psutil, "net_if_addrs", Mock(return_value={}))
+    monkeypatch.setattr(
+        psutil, source, Mock(side_effect=RuntimeError("native failure"))
+    )
+    result = snap.collect_snapshot()
+    assert result.ports[0].docker
+    failed = "listeners" if source == "net_connections" else "local_ips"
+    assert next(r for r in result.reports if r.source == failed).status == "error"
+
+
+def test_mac_fallback_is_partial_and_can_be_disabled(sources, monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(snap, "sys", SimpleNamespace(platform="darwin"))
+    sources["collect_listeners"].side_effect = ListenerAccessDenied("denied")
+    fallback = Mock(
+        return_value=Collection(
+            (PortEntry("tcp", "127.0.0.1", 1234),), SourceReport("listeners", "partial")
+        )
+    )
+    monkeypatch.setattr(snap, "collect_accessible_listeners", fallback)
+    result = snap.collect_snapshot()
+    assert result.reports[0].status == "partial"
+    assert any(p.port == 1234 for p in result.ports)
+    result = snap.collect_snapshot(accessible_fallback=False)
+    assert result.reports[0].status == "unavailable"
+    assert fallback.call_count == 1
+
+
+def test_indexed_merge_only_compares_candidates_on_matching_port(monkeypatch):
+    entries = [PortEntry("tcp", "0.0.0.0", 1000 + i) for i in range(300)]
+    mappings = tuple(mapping(port=1000 + i) for i in range(300))
+    routes = tuple(
+        TunnelRoute(1, "example.test", "localhost", 1000 + i) for i in range(300)
+    )
+    docker_match = Mock(wraps=snap._docker_matches)
+    route_match = Mock(wraps=snap._route_matches)
+    monkeypatch.setattr(snap, "_docker_matches", docker_match)
+    monkeypatch.setattr(snap, "_route_matches", route_match)
+    rows = snap.merge_sources(entries, mappings, (TunnelInfo(1, routes),))
+    assert len(rows) == 300 and all(row.docker and row.tunnels for row in rows)
+    assert docker_match.call_count == route_match.call_count == 300
