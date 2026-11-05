@@ -13,6 +13,7 @@ def test_linux_compares_namespace_inodes(
     inodes: list[int],
     expected: bool,
 ) -> None:
+    """Namespace equality requires matching device and inode, not inode alone."""
     monkeypatch.setattr(namespaces, "sys", SimpleNamespace(platform="linux"))
     stat = Mock(side_effect=[SimpleNamespace(st_dev=1, st_ino=n) for n in inodes])
     monkeypatch.setattr(Path, "stat", stat)

@@ -22,6 +22,7 @@ from portscanner.core.procs import enrich_processes
 def test_real_local_sockets(
     monkeypatch: pytest.MonkeyPatch, system_wide: bool, family: int, host: str
 ) -> None:
+    """Observe owned TCP/UDP sockets and platform-specific peer visibility."""
     with ExitStack() as stack:
         tcp = stack.enter_context(socket.socket(family, socket.SOCK_STREAM))
         udp = stack.enter_context(socket.socket(family, socket.SOCK_DGRAM))

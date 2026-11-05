@@ -20,6 +20,7 @@ class KubeDiscovery:
         interval: float = 30.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        """Create an empty cache with a positive TTL measured by the supplied clock."""
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("Interwał musi być dodatni i skończony")
         self._interval = interval
@@ -60,6 +61,7 @@ class KubeDiscovery:
         *,
         timeout: float = 3.0,
     ) -> Collection[PortEntry]:
+        """Start one background read at most; merge current port-forward sessions."""
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("Timeout musi być dodatni i skończony")
         with self._lock:
@@ -116,6 +118,7 @@ class KubeDiscovery:
     def _read(
         self, local_ips: tuple[LocalIP, ...], timeout: float, revision: int
     ) -> None:
+        """Publish a completed read only if its cache revision is still current."""
         try:
             result = collect_nodeports(local_ips, timeout=timeout)
         except Exception:

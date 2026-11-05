@@ -48,6 +48,7 @@ def collect_listeners(*, group_dual_stack: bool = True) -> list[PortEntry]:
 
 
 def _entries(connections, *, group_dual_stack: bool = True) -> list[PortEntry]:
+    """Normalize TCP listeners and UDP bindings, preserving unknown Windows peers."""
     entries: set[PortEntry] = set()
     for connection in connections:
         if connection.family not in (socket.AF_INET, socket.AF_INET6):

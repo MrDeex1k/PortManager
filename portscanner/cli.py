@@ -73,6 +73,7 @@ def _reports(snapshot: Snapshot) -> bool:
 
 
 def _kill(pid: int, *, force: bool, timeout: float) -> None:
+    """Confirm the captured identity and request fresh consent after a timeout."""
     try:
         target = prepare_kill(pid)
         typer.echo(_safe(f"Proces PID {target.pid}: {target.name}"), err=True)

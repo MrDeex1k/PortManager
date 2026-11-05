@@ -36,6 +36,7 @@ def test_terminate_own_temporary_listener() -> None:
 
 
 def test_resume_own_listener_after_it_closes_port():
+    """Fresh consent can kill an owned process after SIGTERM has closed its listener."""
     import os
 
     import pytest

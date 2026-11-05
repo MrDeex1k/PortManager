@@ -67,6 +67,7 @@ def test_slow_cluster_does_not_block_local_rows_or_overlap(reader: Mock) -> None
 
 
 def test_ttl_does_not_cache_local_sessions_and_reports_age(reader: Mock) -> None:
+    """Cluster TTL preserves fresh local sessions and reports the age of cached data."""
     clock = Mock(return_value=100.0)
     discovery = KubeDiscovery(clock=clock)
     try:
@@ -94,6 +95,7 @@ def test_ttl_does_not_cache_local_sessions_and_reports_age(reader: Mock) -> None
 def test_failed_refresh_retains_last_success_then_empty_success_clears_it(
     reader: Mock,
 ) -> None:
+    """Failures retain stale data; empty successful reads remove old mappings."""
     clock = Mock(return_value=0.0)
     reader.side_effect = [
         OK,

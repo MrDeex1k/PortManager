@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 def same_namespaces(pid: int) -> bool:
+    """Compare network and mount namespace device/inode pairs on Linux."""
     if sys.platform != "linux":
         return True
     for kind in ("net", "mnt"):

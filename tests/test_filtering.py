@@ -16,6 +16,7 @@ DATA = json.loads((Path(__file__).parent / "fixtures/filter_cases.json").read_te
 
 
 def entries():
+    """Convert the shared JSON fixture into immutable core models for parity checks."""
     result = []
     for raw in DATA["ports"]:
         data = {key: value for key, value in raw.items() if key != "id"}
@@ -40,10 +41,12 @@ def entries():
 
 @pytest.mark.parametrize("case", DATA["cases"], ids=lambda case: case["query"])
 def test_shared_filter_contract(case):
+    """Require errors only for invalid queries and exact matches for valid queries."""
     rows = entries()
-    try:
-        matched = filter_entries(rows, case["query"].strip() or None)
-    except ValueError:
-        assert not case["ids"]
+    query = case["query"].strip() or None
+    if case.get("invalid", False):
+        with pytest.raises(ValueError):
+            filter_entries(rows, query)
     else:
+        matched = filter_entries(rows, query)
         assert [str(rows.index(row)) for row in matched] == case["ids"]

@@ -222,6 +222,7 @@ def test_timeout_continuation_works_after_socket_closes(process):
 
 @pytest.mark.parametrize("change", ["pid", "argv", "owner", "namespace", "expiry"])
 def test_continuation_rejects_changed_or_expired_target(process, monkeypatch, change):
+    """A continuation cannot kill a changed target or outlive consent."""
     target = actions.prepare_kill(PID)
     process.wait.side_effect = psutil.TimeoutExpired(0.1)
     with pytest.raises(actions.TerminationPending) as error:

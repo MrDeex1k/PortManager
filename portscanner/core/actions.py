@@ -200,11 +200,13 @@ class TerminationPending(ProcessActionError):
 
 
 def _validate_timeout(timeout: float) -> None:
+    """Reject nonpositive or nonfinite waits before acting on a process."""
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout musi być dodatni i skończony")
 
 
 def _escalate(target: KillTarget, timeout: float) -> ActionStatus:
+    """Revalidate a signalled target before kill, allowing a closed socket."""
     try:
         # Only a continuation of an already verified and signalled operation
         # may omit the socket check. Ownership and identity are checked again.

@@ -209,22 +209,27 @@
     },
     {
       "query": ":0",
+      "invalid": true,
       "ids": []
     },
     {
       "query": ":65536",
+      "invalid": true,
       "ids": []
     },
     {
       "query": ":oops",
+      "invalid": true,
       "ids": []
     },
     {
       "query": "pid:",
+      "invalid": true,
       "ids": []
     },
     {
       "query": ":\uff18\uff10",
+      "invalid": true,
       "ids": []
     },
     {

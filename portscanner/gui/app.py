@@ -62,6 +62,7 @@ class DesktopAPI:
         prepare: Callable[[int], KillTarget] = prepare_kill,
         terminate: Callable[..., object] = terminate_target,
     ) -> None:
+        """Initialize scan, action and consent state with injectable collectors."""
         self._collector = collector or self._collect
         self._kube = kube
         self._kube_discovery = KubeDiscovery()
@@ -88,6 +89,7 @@ class DesktopAPI:
         return collect_snapshot(kube=self._kube, kube_discovery=self._kube_discovery)
 
     def _close(self) -> None:
+        """Release retained process identities and stop consent timers and discovery."""
         with self._state_lock:
             self._closed = True
             self._targets.clear()
@@ -120,6 +122,7 @@ class DesktopAPI:
         target: KillTarget,
         pending: PendingTermination | None = None,
     ) -> PrepareSuccess | BridgeFailure:
+        """Retain an identity for 120 seconds; expose redacted consent details."""
         token = uuid.uuid4().hex
         with self._state_lock:
             if self._closed:
@@ -139,6 +142,7 @@ class DesktopAPI:
         }
 
     def cancel_process(self, token: str) -> Cancelled | BridgeFailure:
+        """Forget a consent token without a signal; repeated cancellation is safe."""
         if not isinstance(token, str):
             return _error("Nieprawidłowe potwierdzenie operacji.")
         with self._state_lock:
@@ -147,6 +151,7 @@ class DesktopAPI:
         return {"ok": True, "status": "cancelled"}
 
     def get_app_info(self) -> AppInfo:
+        """Expose runtime metadata and the platform-specific termination mode."""
         return {
             "name": "PortManager",
             "version": version("portscanner"),
@@ -362,6 +367,7 @@ def _error(
     request_id: int | None = None,
     generation: int | None = None,
 ) -> BridgeFailure:
+    """Build a typed failure with optional request and snapshot correlation fields."""
     result: BridgeFailure = {
         "ok": False,
         "code": "busy" if busy else code,

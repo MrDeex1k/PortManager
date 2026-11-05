@@ -45,6 +45,7 @@ def _docker_matches(entry: PortEntry, mapping: DockerPort) -> bool:
 def _route_matches(
     entry: PortEntry, route: TunnelRoute, local_addresses: set[str]
 ) -> bool:
+    """Match TCP origins to local binds without resolving hostnames through DNS."""
     if entry.proto != "tcp" or entry.port != route.port:
         return False
     if route.host == "localhost":
@@ -82,6 +83,7 @@ def _merge_docker(
     entries: list[PortEntry],
     mappings: tuple[DockerPort, ...],
 ) -> tuple[PortEntry, ...]:
+    """Index publications by protocol/port; keep unmatched synthetic rows."""
     enriched = []
     by_port: dict[tuple[str, int], list[DockerPort]] = defaultdict(list)
     for mapping in mappings:

@@ -249,6 +249,7 @@ def test_kill_decline_or_eof_never_sends_signal(
 def test_force_still_confirms_and_uses_prepared_identity(
     source: Mock, action: tuple[Mock, Mock]
 ) -> None:
+    """Force still requires consent and preserves the identity displayed to the user."""
     action[0].return_value = replace(
         action[0].return_value,
         cmdline=("python", "server.py", "--token", "private-value"),
@@ -278,6 +279,7 @@ def test_blocked_kill_never_prompts_or_terminates(
     "answer,called", [("y\n", True), ("n\n", False), ("\n", False), ("", False)]
 )
 def test_timeout_requires_a_second_consent(action, monkeypatch, answer, called):
+    """A timeout continuation runs only after a separate affirmative response."""
     from portscanner.core.actions import TerminationPending
 
     pending = TerminationPending(action[0].return_value)

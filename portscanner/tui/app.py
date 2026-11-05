@@ -315,6 +315,7 @@ class PortScannerApp(App[None]):
         self.run_worker(self._kill(entry.pid), group="process")
 
     async def _kill(self, pid: int) -> None:
+        """Run termination off the UI thread; ask again before continuation."""
         try:
             self.message.update(f"Weryfikacja procesu PID {pid}…")
             target = await asyncio.to_thread(prepare_kill, pid)

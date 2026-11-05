@@ -16,6 +16,7 @@ _SECRET_FLAGS = frozenset(
 
 
 def redact_cmdline(args: tuple[str, ...]) -> tuple[str, ...]:
+    """Mask secret flag values while recognizing consecutive sensitive flags."""
     result: list[str] = []
     secret_value = False
     for arg in args:

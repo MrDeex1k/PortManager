@@ -39,6 +39,7 @@ def _wait_js(window: object, expression: str, *, timeout: float = 8.0) -> object
 
 
 def _listener(*, escalation: bool = False) -> subprocess.Popen[str]:
+    """Start an owned listener that can close its port before escalation."""
     script = (
         "import socket, sys\n"
         "with socket.socket() as server:\n"
@@ -65,6 +66,7 @@ def _listener(*, escalation: bool = False) -> subprocess.Popen[str]:
 
 
 def main() -> None:
+    """Exercise the GUI with controlled data and an owned process; clean up."""
     webview = importlib.import_module("webview")
     original_start = webview.start
     failures: list[str] = []
@@ -90,6 +92,7 @@ def main() -> None:
     route = TunnelRoute(9000, "preview.local", "localhost", 3000, "/api")
 
     def collector() -> Snapshot:
+        """Supply synthetic integrations and the current state of the owned listener."""
         time.sleep(0.65)
         entries = [
             PortEntry(
@@ -164,6 +167,7 @@ def main() -> None:
     forced_refreshes: list[int] = []
 
     def busy_once(request_id: int, refresh_kube: bool = False) -> dict:
+        """Simulate one busy refresh response before restoring normal snapshot reads."""
         if refresh_kube:
             forced_refreshes.append(request_id)
             if len(forced_refreshes) == 1:
@@ -174,6 +178,7 @@ def main() -> None:
         export_path = Path(directory) / "visible.json"
 
         def inspect() -> None:
+            """Run GUI checks, record failures and close the test window."""
             window = webview.windows[0]
             try:
                 assert window.events.loaded.wait(10), "WebKit nie załadował dokumentu"

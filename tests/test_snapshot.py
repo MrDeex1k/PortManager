@@ -145,6 +145,7 @@ def test_optional_source_failure_keeps_ports(sources: dict[str, Mock]) -> None:
 def test_failed_listener_read_still_exposes_docker_with_error_report(
     sources: dict[str, Mock],
 ) -> None:
+    """Listener failures preserve Docker publications and a failure report."""
     sources["collect_listeners"].side_effect = ListenerAccessDenied()
     result = snap.collect_snapshot(accessible_fallback=False)
     assert result.ports[0].origin == "docker" and result.ports[0].pid is None
@@ -175,6 +176,7 @@ def test_background_discovery_is_explicit_and_reuses_current_local_rows(
 
 
 def test_nodeport_receives_tunnel_after_kube_merge(sources, monkeypatch):
+    """Tunnel relations are attached after synthetic Kubernetes rows are added."""
     route = TunnelRoute(42, "node.example.test", "192.0.2.1", 31080)
     sources["collect_tunnels"].return_value = Collection(
         (TunnelInfo(42, (route,), "explicit"),), SourceReport("tunnels", "ok")
@@ -220,6 +222,7 @@ def test_route_address_matrix(bind, host, local, match):
 
 @pytest.mark.parametrize("source", ["net_connections", "net_if_addrs"])
 def test_native_runtime_error_preserves_other_sources(sources, monkeypatch, source):
+    """A native listener failure does not discard successful independent sources."""
     import psutil
 
     from portscanner.core.ips import collect_local_ips
@@ -239,6 +242,7 @@ def test_native_runtime_error_preserves_other_sources(sources, monkeypatch, sour
 
 
 def test_mac_fallback_is_partial_and_can_be_disabled(sources, monkeypatch):
+    """The macOS accessible-process fallback is explicitly partial and optional."""
     from types import SimpleNamespace
 
     monkeypatch.setattr(snap, "sys", SimpleNamespace(platform="darwin"))
@@ -258,6 +262,7 @@ def test_mac_fallback_is_partial_and_can_be_disabled(sources, monkeypatch):
 
 
 def test_indexed_merge_only_compares_candidates_on_matching_port(monkeypatch):
+    """Matching checks same-port candidates, not all cross-source pairs."""
     entries = [PortEntry("tcp", "0.0.0.0", 1000 + i) for i in range(300)]
     mappings = tuple(mapping(port=1000 + i) for i in range(300))
     routes = tuple(

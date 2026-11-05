@@ -152,6 +152,7 @@ def test_window_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_bridge_exposes_live_metadata_and_operations() -> None:
+    """The bridge advertises live metadata and only the intended public operations."""
     info = gui.DesktopAPI().get_app_info()
     assert info["mode"] == "desktop" and info["stage"] == "live"
     assert set(name for name in dir(gui.DesktopAPI) if not name.startswith("_")) == {
@@ -167,6 +168,7 @@ def test_bridge_exposes_live_metadata_and_operations() -> None:
 
 
 def test_bridge_serializes_snapshot_and_uses_core_filter() -> None:
+    """Snapshots retain core fields and use the shared filter implementation."""
     api = gui.DesktopAPI(
         collector=lambda: _snapshot(
             PortEntry(
@@ -248,6 +250,7 @@ def test_bridge_reports_collection_error_without_details() -> None:
 def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Changing Kubernetes invalidates snapshots and updates discovery."""
     collector = Mock(return_value=_snapshot())
     monkeypatch.setattr(gui, "collect_snapshot", collector)
     api = gui.DesktopAPI()
@@ -271,6 +274,7 @@ def test_gui_toggle_invalidates_snapshot_and_routes_background_discovery(
 
 
 def test_gui_toggle_does_not_race_snapshot_read() -> None:
+    """An in-flight snapshot prevents concurrent changes to Kubernetes settings."""
     api = gui.DesktopAPI()
     api._scan_lock.acquire()
     try:
@@ -374,6 +378,7 @@ def test_remote_connector_metadata_is_not_lost():
 
 
 def test_cancel_and_expiry_release_raw_targets(monkeypatch):
+    """Cancellation, expiry and shutdown release retained identities and timer state."""
     now = Mock(return_value=10.0)
     monkeypatch.setattr(gui.time, "monotonic", now)
     timer = Mock()

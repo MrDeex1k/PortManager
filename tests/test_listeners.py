@@ -84,6 +84,7 @@ def test_keeps_tcp_listeners_regardless_of_port_number(
 
 
 def test_udp_uses_peer_not_tcp_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """UDP inclusion depends on the remote peer rather than TCP connection state."""
     bound = Connection(
         type=socket.SOCK_DGRAM,
         laddr=Address("127.0.0.1", 60000),
@@ -220,6 +221,7 @@ def test_system_errors_have_a_core_exception(
 
 
 def test_windows_udp_unknown_owner_and_peer(monkeypatch):
+    """Windows UDP metadata preserves unknown ownership and peer visibility."""
     from types import SimpleNamespace
 
     from portscanner.core import listeners

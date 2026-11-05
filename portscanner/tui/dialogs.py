@@ -36,6 +36,7 @@ class KillScreen(ModalScreen[bool | None]):
         self.escalation = escalation
 
     def compose(self) -> ComposeResult:
+        """Render redacted identity and platform-specific termination consent."""
         with VerticalScroll():
             yield Static(
                 "Wymusić zakończenie po timeout?"
@@ -76,6 +77,7 @@ class KillScreen(ModalScreen[bool | None]):
         self.dismiss(None)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Return force consent only for confirmation; cancellation returns None."""
         event.stop()
         self.dismiss(
             (
