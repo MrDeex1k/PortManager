@@ -34,6 +34,11 @@ packages = ["portscanner"]
 artifacts = ["portscanner/gui/assets/**"]
 
 [tool.hatch.build.targets.sdist]
+only-include = [
+    "portscanner", "frontend", "scripts", "tests", "docs",
+    "pyproject.toml", "uv.lock", "README.md", "LICENSE", "CHANGELOG.md",
+    ".python-version", ".gitignore", "lefthook.yml",
+]
 exclude = ["frontend/node_modules", "frontend/test-results", "frontend/playwright-report"]
 
 [tool.uv]

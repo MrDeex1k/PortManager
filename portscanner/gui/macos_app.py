@@ -5,6 +5,7 @@ import ctypes
 import errno
 import os
 import plistlib
+import shlex
 import shutil
 import stat
 from importlib.metadata import version
@@ -51,7 +52,10 @@ def _publish_bundle(bundle: Path, output: Path) -> None:
 
 def build_app(command: Path, output: Path, *, icon: Path) -> Path:
     command = command.expanduser().resolve()
-    output = output.expanduser().resolve()
+    # Resolve the parent only: following the final symlink could publish at a
+    # different destination or accept a dangling link as an unused output.
+    output = output.expanduser().absolute()
+    output = output.parent.resolve() / output.name
     icon = icon.expanduser().resolve()
     if not command.is_file() or not os.access(command, os.X_OK):
         raise ValueError(f"Nie znaleziono polecenia: {command}")
@@ -59,7 +63,7 @@ def build_app(command: Path, output: Path, *, icon: Path) -> Path:
         raise ValueError(f"Nie znaleziono ikony: {icon}")
     if output.suffix != ".app":
         raise ValueError("Ścieżka wyjściowa musi kończyć się na .app")
-    if output.exists():
+    if os.path.lexists(output):
         raise ValueError(f"Ścieżka już istnieje: {output}")
 
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -70,9 +74,14 @@ def build_app(command: Path, output: Path, *, icon: Path) -> Path:
         macos.mkdir(parents=True)
         resources.mkdir()
         launcher = macos / "PortManager"
-        # Ścieżka nie pochodzi z powłoki; apostrof jest kodowany POSIX.
-        quoted = "'" + str(command).replace("'", "'\"'\"'") + "'"
-        launcher.write_text(f"#!/bin/sh\nexec {quoted} --gui\n", encoding="utf-8")
+        # Finder does not load shell startup files. Keep its PATH and make the
+        # installed command's siblings and standard Homebrew tools discoverable.
+        search_path = shlex.quote(f"{command.parent}:/opt/homebrew/bin:/usr/local/bin")
+        launcher.write_text(
+            f'#!/bin/sh\nPATH={search_path}:"${{PATH:-/usr/bin:/bin:/usr/sbin:/sbin}}"\n'
+            f"export PATH\nexec {shlex.quote(str(command))} --gui\n",
+            encoding="utf-8",
+        )
         launcher.chmod(
             launcher.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
         )

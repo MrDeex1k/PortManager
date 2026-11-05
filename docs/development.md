@@ -63,6 +63,10 @@ korzysta z gotowych zasobów Vite.
   testowym Vue z TanStack Query oraz kontrolowanym mostkiem. Obejmują przejście
   demo/desktop, błędy i spóźnione odpowiedzi, zgody, kopiowanie IPv6 i strony tabeli
   przy eksporcie wszystkich wyników. Nie zastępują testu natywnego DOM/WebKit.
+- **Wydania:** walidacja wheel i lokalnych zasobów GUI, zgodność kodów wyjścia
+  z raportami CLI, izolacja pipx, zachowanie wcześniejszych artefaktów po awarii
+  oraz ścieżki i dowiązania launchera macOS. Rzeczywistą instalację artefaktów
+  sprawdza osobno [verify_release.py](release.md#weryfikacja-artefaktu).
 - **Integracje lokalne:** gniazda loopback, interfejsy, HTTP loopback i operacje
   na tymczasowym procesie utworzonym przez test, powolne odpowiedzi HTTP,
   odczyt FIFO i sprzątanie potomków poleceń.

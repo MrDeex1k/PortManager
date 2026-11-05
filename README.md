@@ -176,7 +176,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked pyrefly check
 uv run --locked pytest
-uv build
+uv run --locked python scripts/build_release.py
 ```
 
 Po instalacji zależności frontendu, w katalogu `frontend`:
@@ -188,6 +188,8 @@ bun run build
 ```
 
 `build` sprawdza też typy przez vue-tsc. Środowisko, zakres testów i hooki: [rozwój i testy](docs/development.md).
+Wydanie z GUI zbuduj przez `scripts/build_release.py --gui` z katalogu głównego;
+[pakowanie i weryfikacja artefaktów](docs/release.md) opisują oba warianty.
 
 </details>
 
