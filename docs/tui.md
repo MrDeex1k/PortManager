@@ -41,7 +41,9 @@ widoczne jest `?`; częściowy odczyt procesu ma status przy nazwie.
 Mapowania zawierają nazwę kontenera, host → port kontenera i projekt/usługę
 Compose. Tunel jest regułą konfiguracji, a tag K8s heurystyką z podaną podstawą.
 `docker` jako źródło oznacza publikację bez potwierdzonego gniazda hosta.
-UDP oznacza związane gniazdo, bez potwierdzenia handshake.
+UDP oznacza związane gniazdo, bez potwierdzenia handshake. Na Windows peer UDP
+jest nieznany, więc lista może zawierać także endpointy klientów; raport
+`listeners: partial [udp_peer_unknown]` opisuje to ograniczenie.
 
 Nad tabelą są lokalne IP, czas ostatniego odczytu i raporty niedostępnych lub
 częściowych źródeł. Długie sekcje i tabela mają przewijanie. Brak uprawnień
@@ -62,9 +64,11 @@ odczyt; ticki podczas jego trwania są pomijane. Ręczne `r` oraz odświeżenie 
 zakończeniu procesu zapisują jedno oczekujące żądanie. Wynik wcześniejszego skanu
 jest wtedy pomijany, a worker wykonuje kolejny odczyt bez nakładania operacji.
 Wymuszenie Kubernetes jest przekazywane także podczas aktywnego skanu.
-Długa operacja nie blokuje
-pisania ani nawigacji. Domyślny timeout core wynosi 3 s dla pojedynczej operacji,
-nie całej migawki. Wyjście może poczekać na już rozpoczęty odczyt wątku.
+Długa operacja nie blokuje pisania ani nawigacji. Docker, Tunnel i Kubernetes
+mają osobne budżety I/O po 3 s; polecenia i odczyty danego kolektora dzielą
+jego budżet. Nie jest to limit całej migawki ani odczytów psutil i parsowania;
+sprzątanie podprocesów może dodatkowo wydłużyć oczekiwanie.
+Wyjście może poczekać na już rozpoczęty odczyt wątku.
 
 Różnice są nanoszone przez dodanie/usunięcie wierszy i aktualizację zmienionych
 komórek, bez czyszczenia całej tabeli. Niezmienione wpisy nie są ponownie formatowane.

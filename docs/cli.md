@@ -26,6 +26,8 @@ konfiguracji nie jest interpretowany jako Rich markup ani sterowanie terminalem.
 `--columns` wybiera kolejność i zestaw kolumn, co ułatwia odczyt w wąskim terminalu.
 Nazwy są rozdzielane przecinkami, bez rozróżniania wielkości liter; powtórzenia
 i nieznane nazwy są błędem. Opcja działa wyłącznie z tabelą.
+Dostępne nazwy: `PROTO`, `BIND`, `PORT`, `PID`, `PROC`, `DOCKER`, `TUNNEL`,
+`TAG`, `KUBERNETES`, `ŹRÓDŁO`.
 Pod tabelą są wszystkie wykryte connectory Cloudflare Tunnel, niezależnie od
 filtra portów: PID, stan konfiguracji i metryk, liczba połączeń (`?`, gdy nieznana)
 oraz kody przyczyn błędów. Connector bez lokalnych tras również pozostaje widoczny.
@@ -44,13 +46,17 @@ oraz kody przyczyn błędów. Connector bez lokalnych tras również pozostaje w
 | `--no-docker` | Bez uruchamiania Docker CLI |
 | `--no-tunnels` | Bez wykrywania konfiguracji i metryk tuneli |
 | `--no-metrics` | Bez HTTP loopback metryk; procesy i config tuneli nadal odczytywane |
-| `--timeout SECONDS` | Timeout operacji większy od 0 i nie większy niż 3600 s, domyślnie 3 s |
+| `--timeout SECONDS` | Budżet I/O każdego źródła Docker/Tunnel/Kubernetes lub czas oczekiwania na zakończenie procesu; >0 i ≤3600 s, domyślnie 3 s |
 | `--exit-ip` | Jawne HTTPS do ipify, wyłącznie w trybie tabeli |
 
 Exit IP nie jest odczytywany domyślnie. `--exit-ip` ujawnia ipify adres
 wyjściowy trasy i drukuje etykietę „exit IP (widziane z internetu)”. Flaga nie
-łączy się z trybami JSON ani `--kill`. Timeout ma znaczenie opisane w API core:
-dotyczy operacji, nie całego skanowania ani twardego limitu DNS.
+łączy się z trybami JSON ani `--kill`. Każde opcjonalne źródło ma osobny budżet
+`--timeout`: wszystkie jego polecenia lub odczyty konfiguracji i metryk dzielą
+pozostały czas. Limit nie obejmuje całego skanowania, odczytów psutil ani parsowania.
+Dla `--kill` jest to czas oczekiwania osobno po terminate i po kill.
+Dla exit IP dotyczy operacji gniazda, bez twardego limitu DNS.
+[Szczegóły budżetów i sprzątania](core-api.md#główne-wejście).
 Jawne `--timeout 3` również wymaga `--cli`; wartość domyślna nie omija kontroli trybu.
 
 ## Filtry

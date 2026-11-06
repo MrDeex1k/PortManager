@@ -115,7 +115,9 @@ Dotyczy to `--token`, `--token-file`, `--access-token`, `--auth-token`,
 `--password`, `--passwd`, `--api-key`, `--secret` i `--client-secret`, w postaci
 `--flaga wartość` oraz `--flaga=wartość`. Nazwy są rozpoznawane bez wielkości
 liter, także z `_` zamiast `-`. Wartość jest zastępowana przez `***`, a granice
-argumentów i pozostałe argumenty są zachowane.
+argumentów i pozostałe argumenty są zachowane. Jeśli oczekiwana wartość sama
+jest znaną flagą sekretu, maskowanie obejmuje także jej wartość:
+`["--password", "--token", "sekret"]` daje `["--password", "***", "***"]`.
 
 Migawki, filtr po argumentach i eksport JSON używają zamaskowanych danych.
 Dialogi kończenia procesu w CLI/TUI korzystają z tego samego maskowania,
@@ -234,13 +236,17 @@ Szczegóły modeli, lokalności, odczytu klastra i timeoutu: [Kubernetes](kubern
 
 `core/filtering.py` udostępnia `filter_entries(entries, query) -> list[PortEntry]`.
 `None` zachowuje wszystkie wpisy, `:PORT`/`pid:PID` filtrują dokładnie, pozostały
-tekst dopasowuje podciąg bez wielkości liter. Błędny filtr zgłasza `ValueError`.
+tekst dopasowuje podciąg bez wielkości liter przez Unicode `casefold()`
+(np. `STRASSE` pasuje do `Straße`). Podgląd Vue używa generowanej tabeli
+`frontend/src/casefold.ts` i tych samych przypadków testowych co Python.
+Błędny filtr zgłasza `ValueError`.
 
 `core/actions.py` jest oddzielony od odczytów. `prepare_kill(pid) -> KillTarget`
 sprawdza politykę bez wysyłania sygnału. UI pokazuje dane i musi uzyskać zgodę,
 po czym wywołuje `terminate_target(target, force=False, timeout=3.0)`.
 Ta funkcja ponownie sprawdza tożsamość i reguły przed sygnałem oraz eskalacją.
-Wynik to `terminated` albo `already_exited` (zakończenie podczas eskalacji).
+Wynik to `terminated` albo `already_exited` (proces zniknął podczas oczekiwania
+po terminate lub zweryfikowano jego zakończenie podczas eskalacji).
 Timeout po wysłaniu terminate bez force zgłasza `TerminationPending`, podklasę
 `ProcessActionError`. Jej `pending.resume(timeout=...)` wolno wywołać dopiero po
 nowej zgodzie na kill. Kontynuacja jest jednorazowa i ważna 120 sekund; zachowuje

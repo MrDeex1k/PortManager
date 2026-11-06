@@ -71,7 +71,7 @@ PortManager odczytuje lokalne gniazda TCP/UDP; nie skanuje zdalnych hostów. Kub
 
 *Widok działającego Textual wyeksportowany w trybie testowym z danymi demonstracyjnymi.*
 
-`/` filtruj · `s` sortuj · `r` odśwież · `j` eksportuj JSON · `k` otwórz dialog zakończenia procesu · `q` wyjdź
+`/` filtruj · `s` sortuj · `r` odśwież · `d` diagnostyka · `j` eksportuj JSON · `k` otwórz dialog zakończenia procesu · `q` wyjdź (`Ctrl+Q` także z filtra)
 
 ### Małe polecenia, konkretne odpowiedzi
 
@@ -83,6 +83,12 @@ portscanner --cli --filter :8080
 
 # Przekaż wynik do jq lub własnego skryptu
 portscanner --cli --json | jq '.[] | select(.port == 8080)'
+
+# Pełna migawka zawiera również raporty źródeł i connectory bez portów
+portscanner --cli --json-snapshot | jq '.reports'
+
+# Wybierz kolumny do wąskiego terminala
+portscanner --cli --columns PROTO,BIND,PORT,PID,PROC
 
 # Dodaj kontekst Kubernetes
 portscanner --cli --kube

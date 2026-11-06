@@ -85,13 +85,19 @@ uv tool run --from pipx==1.17.2 pipx install \
 uv tool run --from pipx==1.17.2 pipx ensurepath
 ```
 
-Dla pełnego desktopu, po buildzie frontendu, zamiast pierwszego polecenia użyj:
+Dla pełnego desktopu najpierw zbuduj wheel przez
+`uv run --locked python scripts/build_release.py --gui`, a następnie zamiast
+pierwszego polecenia instalacji użyj:
 
 ```bash
 uv tool run --from pipx==1.17.2 pipx install \
   --backend pip --python "$(uv python find)" \
   './dist/portscanner-0.1.0-py3-none-any.whl[gui]'
 ```
+
+Dodatek `[gui]` instaluje zależności desktopu, ale nie buduje ani nie dodaje
+frontendu do istniejącego wheel. Paczka z domyślnego builda CLI/TUI nie wystarczy
+do uruchomienia okna, nawet po lokalnym `bun run build`.
 
 Otwórz nowy terminal po `ensurepath`, a następnie uruchom `portscanner`,
 `portscanner --cli` lub, po instalacji dodatku, `portscanner --gui`.

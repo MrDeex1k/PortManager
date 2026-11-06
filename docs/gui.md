@@ -27,7 +27,7 @@ instalacja przez pipx i zakres zgodności: [instalacja i pakowanie](release.md).
   Filtr tekstowy w trybie desktopowym korzysta ze wspólnego core.
 - Wybierz TCP lub UDP i sortuj tabelę nagłówkami kolumn.
 - Przy ponad 100 wynikach przechodź między stronami tabeli. Filtrowanie i sortowanie
-  obejmują wszystkie wyniki; zmiana filtra lub sortowania wraca na pierwszą stronę.
+  obejmują wszystkie wyniki; zmiana filtra wraca na pierwszą stronę.
 - Kliknij port, aby zobaczyć bind, PID, dostępne argumenty procesu,
   mapowania kontenerów, projekt i usługę Compose, tunele oraz kontekst Kubernetes.
 - Użyj „Odśwież”, aby zlecić odczyt, albo pozostaw automatyczne odświeżanie co 2 s.
@@ -129,6 +129,15 @@ Wersje zależności znajdują się w [package.json](../frontend/package.json),
 
 Dalsze informacje: [rozwój i testy](development.md) · [architektura](architecture.md) ·
 [identyfikacja wizualna](brand/README.md).
+
+## Kontrakt mostka
+
+Typy odpowiedzi są definiowane w `portscanner/gui/contracts.py` oraz generowane
+z modeli core do `frontend/src/contracts.generated.ts`.
+`read_snapshot(request_id, refresh_kube)` zwraca identyfikator żądania i generację
+migawki. `filter_ports(generation, query)` i `export_ports(generation, ids)`
+odrzucają nieaktualną generację jako `stale_snapshot`. Eksport otrzymuje unikalne
+identyfikatory wierszy w kolejności widoku i odrzuca obce lub powtórzone ID.
 
 Kontrakt mostka obejmuje typowane odpowiedzi i strukturalne kody błędów
 (`stale_snapshot`, `invalid_filter`, `consent_expired`, `termination_pending`,
