@@ -7,6 +7,7 @@ import psutil
 
 from portscanner.core.model import PortEntry, ProcessInfo
 from portscanner.core.redaction import redact_cmdline
+from portscanner.core.versions import read_application_version
 
 
 def read_process(pid: int | None) -> ProcessInfo:
@@ -24,6 +25,7 @@ def read_process(pid: int | None) -> ProcessInfo:
 
     name: str | None = None
     cmdline: tuple[str, ...] | None = None
+    application_version = None
     denied = False
     try:
         process = psutil.Process(pid)
@@ -35,6 +37,7 @@ def read_process(pid: int | None) -> ProcessInfo:
             cmdline = tuple(process.cmdline())
         except (psutil.AccessDenied, PermissionError):
             denied = True
+        application_version = read_application_version(process, cmdline)
         if not process.is_running():
             return ProcessInfo(pid=pid, status="gone")
     except psutil.NoSuchProcess:
@@ -50,6 +53,7 @@ def read_process(pid: int | None) -> ProcessInfo:
         status="access_denied" if denied else "ok",
         name=name,
         cmdline=None if cmdline is None else redact_cmdline(cmdline),
+        application_version=application_version,
     )
 
 

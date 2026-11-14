@@ -3,6 +3,15 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Identyfikacja wersji aplikacji — 2026-11-14
+
+- Pasywny odczyt deklarowanej wersji z package.json skryptów Node/Bun,
+  pakietów macOS i etykiet OCI kontenerów, ze wskazaniem źródła.
+- Kolumna wersji w GUI i CLI/TUI, szczegóły w inspektorze, eksport JSON
+  i filtrowanie wersji, nazwy aplikacji oraz referencji obrazu Docker.
+- Ograniczony odczyt metadanych, bez uruchamiania badanych aplikacji
+  i bez odpytywania ich portów; brak danych pozostaje jawnym brakiem wersji.
+
 ## Poprawki pakowania i wydań — 2026-11-05
 
 - Izolowany build CLI/TUI lub GUI ze świeżym frontendem i weryfikacją archiwum

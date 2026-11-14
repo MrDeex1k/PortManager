@@ -1,4 +1,4 @@
-import type { DockerPort } from './types'
+import type { ApplicationVersion, DockerPort, PortRow } from './types'
 
 export function formatEndpoint(bind: string, port: number): string {
   const host = bind.includes(':') && !bind.startsWith('[') ? `[${bind}]` : bind
@@ -18,4 +18,22 @@ export function dockerKey(item: DockerPort): string {
     item.container_port,
     item.proto,
   ])
+}
+
+export function versionSource(source: ApplicationVersion['source']): string {
+  return {
+    package_json: 'package.json',
+    macos_bundle: 'Info.plist (macOS)',
+    oci_label: 'Etykieta OCI',
+  }[source]
+}
+
+export function versionSummary(row: PortRow): string {
+  const values: string[] = []
+  if (row.process?.application_version) values.push(row.process.application_version.version)
+  for (const item of row.docker) {
+    if (item.application_version)
+      values.push(`${item.container_name}: ${item.application_version.version}`)
+  }
+  return [...new Set(values)].join('; ') || '—'
 }

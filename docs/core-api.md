@@ -281,3 +281,33 @@ lub proxy, i ujawnia usłudze jej adres wyjściowy. Nie potwierdza dostępności
 portów z internetu ani adresu routera. Funkcja nie ponawia żądań, ogranicza
 odpowiedź do 64 bajtów i waliduje publiczny adres IP. Timeout dotyczy operacji
 gniazda, nie całego wywołania ani twardego limitu DNS.
+
+## Identyfikacja wersji aplikacji
+
+`ProcessInfo.application_version` i `DockerPort.application_version` zawierają
+`{version, source, application}` albo `null`, gdy nie udało się ustalić wersji.
+`application` jest opcjonalną nazwą z manifestu. Źródła:
+
+- `package_json`: wersja najbliższego pakietu skryptu JS/TS uruchomionego jawnie
+  przez Node/Bun (także `bun run server.ts`). Nie odczytujemy wersji interpretera.
+- `macos_bundle`: `CFBundleShortVersionString`, awaryjnie `CFBundleVersion`,
+  z `Contents/Info.plist` pakietu `.app` zawierającego plik wykonywalny procesu.
+- `oci_label`: deklaracja `org.opencontainers.image.version` z konfiguracji
+  uruchomionego kontenera. `DockerPort.image` zawiera osobno referencję obrazu.
+  Tag obrazu, np. `latest` czy `17`, nie jest automatycznie wersją aplikacji.
+
+Odczyt jest pasywny: nie uruchamia aplikacji z `--version`, nie wysyła żądań
+na port i nie wykonuje poleceń wewnątrz kontenera. Odczyt plików ma limit
+256 KiB, a wyszukiwanie manifestu obejmuje najwyżej 8 katalogów od skryptu.
+Niepoprawne, niedostępne i brakujące metadane dają `null`, zachowując port.
+Dane procesu są zbierane raz na PID w migawce, bez cache między odświeżeniami.
+
+To deklaracje metadanych w chwili odczytu, nie potwierdzenie załadowanego buildu.
+Zmiana plików po uruchomieniu może zmienić wynik. Nie zgadujemy wersji dla
+nieobsługiwanych programów, `node -e`, aliasów skryptów `bun run dev`,
+Pythona, Javy ani z numeru portu. Wpisy Kubernetes nie otrzymują wersji zdalnej
+usługi na podstawie wersji lokalnego `kubectl`.
+
+GUI pokazuje kolumnę „Wersja” i źródło w inspektorze; CLI/TUI mają kolumnę
+`VERSION` (np. `--columns PORT,PROC,VERSION`). JSON zawiera pełne metadane.
+Filtr tekstowy obejmuje wersję, nazwę aplikacji, źródło i obraz Docker.

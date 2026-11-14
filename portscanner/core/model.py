@@ -25,6 +25,15 @@ class Collection[T]:
 
 
 @dataclass(frozen=True, slots=True)
+class ApplicationVersion:
+    """Declared application metadata, not a verified runtime build identity."""
+
+    version: str
+    source: Literal["package_json", "macos_bundle", "oci_label"]
+    application: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class DockerPort:
     container_id: str
     container_name: str
@@ -34,6 +43,8 @@ class DockerPort:
     proto: Literal["tcp", "udp"]
     compose_project: str | None = None
     compose_service: str | None = None
+    application_version: ApplicationVersion | None = None
+    image: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +89,7 @@ class ProcessInfo:
     status: Literal["ok", "unknown", "access_denied", "gone", "error"]
     name: str | None = None
     cmdline: tuple[str, ...] | None = None
+    application_version: ApplicationVersion | None = None
 
 
 @dataclass(frozen=True, slots=True)
