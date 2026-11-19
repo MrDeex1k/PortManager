@@ -107,6 +107,8 @@ bun update --latest --exact
 Konfiguracje uv i Bun stosują karencję publikacji nowych wersji wynoszącą
 3 godziny. uv wyklucza wydania prerelease. TypeScript jest przypięty do wersji
 zgodnej z vue-tsc; zmianę tych zależności sprawdza kontrola typów, build i smoke GUI.
+Przy aktualizacji z 2026-11-19 pozostaje to TypeScript 6.0.3: TypeScript 7.0.2
+nie jest zgodny z vue-tsc 3.3.14 (brak eksportu `typescript/lib/tsc`).
 
 ## Commity i hooki
 

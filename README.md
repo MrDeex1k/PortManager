@@ -102,7 +102,7 @@ PID w przykładzie jest demonstracyjny — podaj PID własnego procesu. Operacja
 
 ## Szybki start
 
-**Wymagania:** Python **3.12+** i [uv](https://docs.astral.sh/uv/). Do zbudowania GUI dodatkowo **Bun 1.4.3**, zgodnie z `frontend/package.json`, i **Node** do kontroli typów Vue. CLI i TUI nie wymagają Bun ani środowiska graficznego.
+**Wymagania:** Python **3.12+** i [uv](https://docs.astral.sh/uv/). Do zbudowania GUI dodatkowo **Bun 1.4.4**, zgodnie z `frontend/package.json`, i **Node** do kontroli typów Vue. CLI i TUI nie wymagają Bun ani środowiska graficznego.
 
 ```bash
 git clone https://github.com/MrDeex1k/PortManager.git

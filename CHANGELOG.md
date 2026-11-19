@@ -3,6 +3,17 @@
 Historia opisuje zmiany w repozytorium. Uruchomienie ze źródeł i instalację
 lokalnego pakietu opisuje [dokumentacja instalacji](docs/release.md).
 
+## Aktualizacja zależności — 2026-11-19
+
+- Odświeżone bezpośrednie i pośrednie zależności NPM i Python w obu lockfile’ach,
+  z zachowaniem karencji publikacji 3 godzin i stabilnych wydań Python.
+- Vue 3.5.45, TanStack Vue Query 5.108.0, Vite 8.3.8, Tailwind CSS 4.3.5,
+  Prettier 3.10.1, vue-tsc 3.3.14 oraz runner i typy Bun 1.4.4.
+- Typer 0.29.2, Pyrefly 1.5.0, pytest 9.2.0, Ruff 0.17.5 i backend
+  budowania Hatchling od 1.33.0; aktualizacja zależności GUI PyObjC do 13.0.
+- TypeScript pozostaje przypięty do 6.0.3 ze względu na niezgodność 7.0.2
+  z vue-tsc; format inspektora dostosowany do nowego Prettiera.
+
 ## Identyfikacja wersji aplikacji — 2026-11-14
 
 - Pasywny odczyt deklarowanej wersji z package.json skryptów Node/Bun,
