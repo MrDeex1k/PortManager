@@ -9,7 +9,7 @@ describe('fallback przeglądarkowy', () => {
     expect(filterPreview(previewPorts, 'pid:0')).toEqual([])
   })
   test('wyszukuje po danych procesu, kontenera i tunelu', () => {
-    expect(filterPreview(previewPorts, 'WORKSPACE')).toEqual(['postgres', 'redis'])
+    expect(filterPreview(previewPorts, 'WORKSPACE')).toEqual(['web', 'postgres', 'redis'])
     expect(filterPreview(previewPorts, 'example.com')).toEqual(['web'])
     expect(filterPreview(previewPorts, 'uvicorn')).toEqual(['api'])
   })

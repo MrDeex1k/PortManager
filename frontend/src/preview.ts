@@ -6,6 +6,7 @@ const proc = (pid: number, name: string, cmdline: string[]): PortRow['process'] 
   status: 'ok',
   name,
   cmdline,
+  application_version: null,
 })
 
 export const previewPorts: PortRow[] = [
@@ -16,7 +17,14 @@ export const previewPorts: PortRow[] = [
     bind: '127.0.0.1',
     port: 3000,
     pid: 8421,
-    process: proc(8421, 'bun', ['bun', 'run', 'dev']),
+    process: {
+      ...proc(8421, 'bun', ['bun', 'server.ts'])!,
+      application_version: {
+        version: '1.2.3',
+        source: 'package_json',
+        application: 'workspace-web',
+      },
+    },
     docker: [],
     tunnels: [
       { pid: 8360, hostname: 'app.example.com', host: 'localhost', port: 3000, path: null },
@@ -57,6 +65,8 @@ export const previewPorts: PortRow[] = [
         proto: 'tcp',
         compose_project: 'workspace',
         compose_service: 'db',
+        image: 'postgres:17',
+        application_version: null,
       },
     ],
     tunnels: [],
@@ -82,6 +92,8 @@ export const previewPorts: PortRow[] = [
         proto: 'tcp',
         compose_project: 'workspace',
         compose_service: 'cache',
+        image: 'redis:7',
+        application_version: { version: '7.4.2', source: 'oci_label', application: null },
       },
     ],
     tunnels: [],
@@ -110,7 +122,13 @@ export const previewPorts: PortRow[] = [
     bind: '*',
     port: 5353,
     pid: 402,
-    process: { pid: 402, status: 'access_denied', name: 'mDNSResponder', cmdline: null },
+    process: {
+      pid: 402,
+      status: 'access_denied',
+      name: 'mDNSResponder',
+      cmdline: null,
+      application_version: null,
+    },
     docker: [],
     tunnels: [],
     tags: [],
@@ -151,6 +169,7 @@ export const previewPorts: PortRow[] = [
       pid: 9100,
       status: 'ok',
       name: 'kubectl',
+      application_version: null,
       cmdline: [
         'kubectl',
         '--context=dev-demo',
@@ -218,13 +237,27 @@ function searchText(row: PortRow): string {
   const fields = [row.proto, row.bind, String(row.port), row.origin]
   if (row.pid !== null) fields.push(String(row.pid))
   if (row.process) fields.push(row.process.name ?? '', ...(row.process.cmdline ?? []))
-  for (const item of row.docker)
+  if (row.process?.application_version)
+    fields.push(
+      row.process.application_version.version,
+      row.process.application_version.application ?? '',
+      row.process.application_version.source,
+    )
+  for (const item of row.docker) {
+    if (item.application_version)
+      fields.push(
+        item.application_version.version,
+        item.application_version.application ?? '',
+        item.application_version.source,
+      )
     fields.push(
       item.container_id,
       item.container_name,
       item.compose_project ?? '',
       item.compose_service ?? '',
+      item.image ?? '',
     )
+  }
   fields.push(...row.tunnels.map((item) => item.hostname ?? ''))
   fields.push(...row.tags.map((item) => item.name))
   for (const item of row.kubernetes)

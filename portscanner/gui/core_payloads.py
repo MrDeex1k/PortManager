@@ -2,6 +2,12 @@
 from typing import Literal, TypedDict
 
 
+class ApplicationVersionPayload(TypedDict):
+    version: str
+    source: Literal["package_json", "macos_bundle", "oci_label"]
+    application: str | None
+
+
 class DockerPortPayload(TypedDict):
     container_id: str
     container_name: str
@@ -11,6 +17,8 @@ class DockerPortPayload(TypedDict):
     proto: Literal["tcp", "udp"]
     compose_project: str | None
     compose_service: str | None
+    application_version: ApplicationVersionPayload | None
+    image: str | None
 
 
 class TunnelRoutePayload(TypedDict):
@@ -41,6 +49,7 @@ class ProcessInfoPayload(TypedDict):
     status: Literal["ok", "unknown", "access_denied", "gone", "error"]
     name: str | None
     cmdline: tuple[str, ...] | None
+    application_version: ApplicationVersionPayload | None
 
 
 class KubernetesPortPayload(TypedDict):

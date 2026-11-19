@@ -10,11 +10,18 @@ from ipaddress import ip_address
 
 from portscanner.core.command import run_command
 from portscanner.core.discovery_errors import error_code
-from portscanner.core.model import Collection, DockerPort, SourceReport
+from portscanner.core.model import (
+    ApplicationVersion,
+    Collection,
+    DockerPort,
+    SourceReport,
+)
 
 _INSPECT_FORMAT = (
     '{"id":{{json .Id}},"name":{{json .Name}},'
     '"running":{{json .State.Running}},"ports":{{json .NetworkSettings.Ports}},'
+    '"image":{{json .Config.Image}},'
+    '"version":{{json (index .Config.Labels "org.opencontainers.image.version")}},'
     '"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
     '"service":{{json (index .Config.Labels "com.docker.compose.service")}}}'
 )
@@ -66,6 +73,20 @@ def _label(value: object) -> str | None:
     return value
 
 
+def _metadata_text(value: object) -> str | None:
+    """Optional image metadata must not discard a valid port publication."""
+    if not isinstance(value, str) or not value.strip() or len(value) > 512:
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return None
+    return value.strip()
+
+
+def _application_version(value: object) -> ApplicationVersion | None:
+    version = _metadata_text(value)
+    return ApplicationVersion(version, "oci_label") if version else None
+
+
 def _binding(row: dict, key: str, binding: object) -> DockerPort | None:
     """Skip routed bindings with no host port; validate all remaining fields."""
     container_port, proto = key.split("/")
@@ -84,6 +105,8 @@ def _binding(row: dict, key: str, binding: object) -> DockerPort | None:
         "tcp" if proto == "tcp" else "udp",
         _label(row.get("project")),
         _label(row.get("service")),
+        application_version=_application_version(row.get("version")),
+        image=_metadata_text(row.get("image")),
     )
 
 

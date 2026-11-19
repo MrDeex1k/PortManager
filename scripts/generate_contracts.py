@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 from portscanner.core import model  # noqa: E402
 
 MODELS = [
+    model.ApplicationVersion,
     model.DockerPort,
     model.TunnelRoute,
     model.TunnelInfo,

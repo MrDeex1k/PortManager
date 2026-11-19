@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { versionSummary } from './presentation'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import {
@@ -177,6 +178,7 @@ const columns = helper.columns([
     header: 'Proces',
     sortFn: sortFn_text,
   }),
+  helper.accessor(versionSummary, { id: 'version', header: 'Wersja', sortFn: sortFn_text }),
   helper.display({ id: 'relations', header: 'Powiązania' }),
   helper.accessor('origin', { header: 'Źródło', sortFn: sortFn_text }),
 ])
