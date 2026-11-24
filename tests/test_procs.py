@@ -3,6 +3,7 @@
 import json
 import os
 from dataclasses import asdict
+from pathlib import Path
 from unittest.mock import Mock
 
 import psutil
@@ -214,6 +215,25 @@ def test_denied_executable_metadata_preserves_process(process_factory: Mock) -> 
     assert read_process(42) == ProcessInfo(
         42, "ok", "python", ("python", "my script.py", "--name", "a b")
     )
+
+
+def test_script_symlink_loop_preserves_process(
+    process_factory: Mock, tmp_path: Path
+) -> None:
+    script = tmp_path / "app.js"
+    try:
+        script.symlink_to(script.name)
+    except OSError as exc:
+        pytest.skip(f"Symlinks unavailable: {exc}")
+
+    process = process_factory.return_value
+    process.name.return_value = "node"
+    process.cmdline.return_value = ["node", script.name]
+    process.cwd.return_value = str(tmp_path)
+
+    result = read_process(42)
+    assert result == ProcessInfo(42, "ok", "node", ("node", script.name))
+    assert result.application_version is None
 
 
 def test_process_disappearing_during_metadata_discards_fields(

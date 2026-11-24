@@ -85,7 +85,11 @@ def _script_argument(cmdline: tuple[str, ...]) -> str | None:
 
 
 def _package_version(script: Path) -> ApplicationVersion | None:
-    script = script.resolve(strict=True)
+    try:
+        script = script.resolve(strict=True)
+    except RuntimeError:
+        # Python 3.12 reports a symlink loop as RuntimeError.
+        return None
     if not script.is_file():
         return None
     for directory in list(script.parents)[:MAX_PACKAGE_PARENTS]:
