@@ -10,8 +10,10 @@
     "build": "bun run check && bun --bun vite build",
     "preview": "bun --bun vite preview --host 127.0.0.1",
     "test": "bun test",
-    "format": "bun --bun prettier --write src tests vite.config.ts tsconfig.json package.json index.html .prettierrc.json",
-    "format:check": "bun --bun prettier --check src tests vite.config.ts tsconfig.json package.json index.html .prettierrc.json"
+    "test:e2e": "FLASHWRIGHT_SESSION=0 node node_modules/@playwright/test/cli.js test --config flashwright.config.ts",
+    "test:e2e:install": "node node_modules/@playwright/test/cli.js install --only-shell chromium firefox webkit",
+    "format": "bun --bun prettier --write src tests e2e flashwright.config.ts vite.config.ts tsconfig.json package.json index.html .prettierrc.json",
+    "format:check": "bun --bun prettier --check src tests e2e flashwright.config.ts vite.config.ts tsconfig.json package.json index.html .prettierrc.json"
   },
   "dependencies": {
     "@tanstack/vue-query": "5.108.0",
@@ -20,6 +22,7 @@
     "vue": "3.5.45"
   },
   "devDependencies": {
+    "@playwright/test": "npm:flashwright-test@1.64.1-flashwright.12",
     "@tailwindcss/vite": "4.3.5",
     "@types/bun": "1.4.4",
     "@vitejs/plugin-vue": "6.0.11",

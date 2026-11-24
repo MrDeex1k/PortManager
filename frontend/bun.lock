@@ -11,6 +11,7 @@
         "vue": "3.5.45",
       },
       "devDependencies": {
+        "@playwright/test": "npm:flashwright-test@1.64.1-flashwright.12",
         "@tailwindcss/vite": "4.3.5",
         "@types/bun": "1.4.4",
         "@vitejs/plugin-vue": "6.0.11",
@@ -50,6 +51,8 @@
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || 2.0.0-beta.2", "@emnapi/runtime": "^1.7.1 || 2.0.0-beta.2" } }, "sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.156.0", "", {}, "sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw=="],
+
+    "@playwright/test": ["flashwright-test@1.64.1-flashwright.12", "", { "dependencies": { "playwright": "npm:flashwright@1.64.1-flashwright.12" }, "bin": { "playwright": "cli.js" } }, "sha512-s++qu9esGJKFscRU2BuEX7QJdYtaLDpibUfEnjPLosKxjhGqECLQ11B/g/LMRpJtbxnFehnr+2o0eUvF4LJAHg=="],
 
     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.19", "", { "os": "android", "cpu": "arm" }, "sha512-e+Ebe0WT+9tbXmNKPIiC8YrWAHYwug3m6i4p3rZGGulfZri1jtI4HslT+OZnFf/OIHowWF71DTlHwXBP2SiA7A=="],
 
@@ -224,6 +227,10 @@
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 
     "picomatch": ["picomatch@4.0.7", "", {}, "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA=="],
+
+    "playwright": ["flashwright@1.64.1-flashwright.12", "", { "dependencies": { "playwright-core": "npm:flashwright-core@1.64.1-flashwright.12" }, "bin": { "playwright": "cli.js" } }, "sha512-uHVbEdcIcMz+/4kvfqYXE5oOMo9EObjQ/AN8yJystNDN6oY5eKa9aRkfwHWaPdlND5V+J/W5qoVQYzxNy3Q8xg=="],
+
+    "playwright-core": ["flashwright-core@1.64.1-flashwright.12", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-iuK+eMGQufE4BjzsPQeLMrE35pgrJt1th63zzDHfogw0mVtwAzIXHazeBQv2RetMIiUUFtrPQTYuvJ19bDr85A=="],
 
     "postcss": ["postcss@8.5.33", "", { "dependencies": { "nanoid": "^3.3.20", "picocolors": "^1.1.1", "source-map-js": "^1.2.2" } }, "sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ=="],
 

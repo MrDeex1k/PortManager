@@ -48,6 +48,30 @@ bun run build
 `bun run check`. Testy nie wymagają budowania frontendu, ale natywne GUI
 korzysta z gotowych zasobów Vite.
 
+## Testy przeglądarkowe
+
+Z katalogu `frontend`, po `bun install --frozen-lockfile`, użyj Node.js
+22.18 lub nowszego i uruchom:
+
+```bash
+bun run test:e2e:install
+bun run test:e2e
+```
+
+Zależność `@playwright/test` jest aliasem pakietu `flashwright-test`.
+Runner uruchamia Vite na `127.0.0.1:4173` i wykonuje scenariusze w Chromium,
+Firefoksie i WebKit. Wybrany silnik można uruchomić poleceniem
+`bun run test:e2e --project=webkit`. Ślady nieudanych testów trafiają do
+`frontend/flashwright-results/`. Na macOS runner tworzy tymczasowy katalog
+danych aplikacji dla Firefoksa. Jeśli system zablokuje jego usunięcie po teście,
+runner wypisze ścieżkę pozostawionego katalogu.
+
+Scenariusze obejmują filtrowanie i wersje aplikacji w demo, wąskie okno,
+przełączenie na migawkę desktopową, powrót po błędzie filtra, przełącznik
+Kubernetes, eksport z wielu stron oraz dialog zakończenia procesu.
+Mostek pywebview w tych testach zwraca dane testowe. Natywne okno, zapis
+pliku i sygnały do procesu sprawdza smoke GUI opisany poniżej.
+
 ## Zakres testów
 
 - **Core:** modele, scalanie źródeł, mapowania Docker i tuneli, Kubernetes,
