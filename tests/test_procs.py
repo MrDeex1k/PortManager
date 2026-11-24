@@ -3,6 +3,7 @@
 import json
 import os
 from dataclasses import asdict
+from pathlib import Path
 from unittest.mock import Mock
 
 import psutil
@@ -184,3 +185,59 @@ def test_real_current_process() -> None:
     assert result.status == "ok"
     assert result.name
     assert result.cmdline
+
+
+def test_version_metadata_is_included_before_final_identity_check(
+    process_factory: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from portscanner.core.model import ApplicationVersion
+
+    version = ApplicationVersion("1.2.3", "package_json", "demo")
+    events = []
+
+    def read_version(process, cmdline):
+        assert cmdline == ("python", "my script.py", "--name", "a b")
+        events.append("metadata")
+        return version
+
+    monkeypatch.setattr("portscanner.core.procs.read_application_version", read_version)
+    process_factory.return_value.is_running.side_effect = lambda: (
+        events.append("identity") or True
+    )
+    assert read_process(42).application_version == version
+    assert events == ["metadata", "identity"]
+    process_factory.return_value.is_running.side_effect = lambda: False
+    assert read_process(42) == ProcessInfo(42, "gone")
+
+
+def test_denied_executable_metadata_preserves_process(process_factory: Mock) -> None:
+    process_factory.return_value.exe.side_effect = psutil.AccessDenied(42)
+    assert read_process(42) == ProcessInfo(
+        42, "ok", "python", ("python", "my script.py", "--name", "a b")
+    )
+
+
+def test_script_symlink_loop_preserves_process(
+    process_factory: Mock, tmp_path: Path
+) -> None:
+    script = tmp_path / "app.js"
+    try:
+        script.symlink_to(script.name)
+    except OSError as exc:
+        pytest.skip(f"Symlinks unavailable: {exc}")
+
+    process = process_factory.return_value
+    process.name.return_value = "node"
+    process.cmdline.return_value = ["node", script.name]
+    process.cwd.return_value = str(tmp_path)
+
+    result = read_process(42)
+    assert result == ProcessInfo(42, "ok", "node", ("node", script.name))
+    assert result.application_version is None
+
+
+def test_process_disappearing_during_metadata_discards_fields(
+    process_factory: Mock,
+) -> None:
+    process_factory.return_value.exe.side_effect = psutil.NoSuchProcess(42)
+    assert read_process(42) == ProcessInfo(42, "gone")

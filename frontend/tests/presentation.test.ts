@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test'
-import { dockerKey, formatArguments, formatEndpoint } from '../src/presentation'
-import { previewPorts } from '../src/preview'
+import {
+  dockerKey,
+  formatArguments,
+  formatEndpoint,
+  versionSummary,
+  versionSource,
+} from '../src/presentation'
+import { previewPorts, filterPreview } from '../src/preview'
 
 test('argument presentation distinguishes unavailable, empty and token boundaries', () => {
   expect(formatArguments(null)).toBe('Niedostępne')
@@ -28,4 +34,20 @@ test('endpoint formatting supports IPv4, IPv6, zone identifiers and wildcard bin
   expect(formatEndpoint('fe80::1%en0', 80)).toBe('[fe80::1%en0]:80')
   expect(formatEndpoint('[::1]', 80)).toBe('[::1]:80')
   expect(formatEndpoint('*', 80)).toBe('*:80')
+})
+
+test('versions keep process and container metadata separate and do not infer image tags', () => {
+  const row = structuredClone(previewPorts[0]!)
+  const docker = structuredClone(previewPorts.find((p) => p.docker.length)!.docker[0]!)
+  row.docker = [docker]
+  expect(versionSummary(row)).toBe('1.2.3')
+  expect(versionSource('package_json')).toBe('package.json')
+  docker.application_version = { version: '8.0.1', source: 'oci_label', application: null }
+  expect(versionSummary(row)).toBe('1.2.3; workspace-db: 8.0.1')
+  expect(filterPreview([row], '8.0.1')).toEqual([row.id])
+  expect(filterPreview([row], 'workspace-web')).toEqual([row.id])
+  expect(filterPreview([row], 'postgres:17')).toEqual([row.id])
+  row.process = null
+  row.docker = []
+  expect(versionSummary(row)).toBe('—')
 })

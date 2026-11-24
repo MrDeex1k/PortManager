@@ -157,3 +157,7 @@ te same funkcje `prepare_kill` i `terminate_target` oraz własny dialog zgody.
 
 
 Platformy i instalacja: [instalacja i pakowanie](release.md).
+
+Kolumna `VERSION` pokazuje deklarowaną wersję oraz źródło metadanych. Przykład:
+`portscanner --cli --columns PORT,PROC,VERSION`. `—` oznacza brak rozpoznanej
+wersji. [Źródła i ograniczenia identyfikacji](core-api.md#identyfikacja-wersji-aplikacji).

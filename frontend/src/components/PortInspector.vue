@@ -2,7 +2,7 @@
 import { ArrowRight, Box, Copy, Globe2, LockKeyhole, OctagonX, Terminal, X } from 'lucide-vue-next'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { PortRow } from '../types'
-import { formatArguments, dockerKey, formatEndpoint } from '../presentation'
+import { formatArguments, dockerKey, formatEndpoint, versionSource } from '../presentation'
 
 const props = defineProps<{ port: PortRow; desktop: boolean; busy: boolean }>()
 defineEmits<{ close: []; requestKill: [] }>()
@@ -78,9 +78,27 @@ async function copyAddress() {
       <section class="inspector-section">
         <h3 class="eyebrow flex items-center gap-2"><Terminal :size="13" />Proces</h3>
         <div class="mt-4 flex items-center justify-between">
-          <span class="font-mono text-sm">{{ port.process?.name ?? 'Brak danych' }}</span
-          ><span class="font-mono text-xs text-muted">{{ port.process?.status ?? 'unknown' }}</span>
+          <span class="font-mono text-sm">{{ port.process?.name ?? 'Brak danych' }}</span><span
+            class="font-mono text-xs text-muted"
+            >{{ port.process?.status ?? 'unknown' }}</span
+          >
         </div>
+        <dl class="mt-4 text-xs">
+          <dt class="text-muted">Wersja aplikacji</dt>
+          <dd class="mt-2 break-all font-mono">
+            {{ port.process?.application_version?.version ?? 'Nieustalona' }}
+          </dd>
+          <template v-if="port.process?.application_version">
+            <dt class="mt-3 text-muted">Źródło wersji</dt>
+            <dd class="mt-1">{{ versionSource(port.process.application_version.source) }}</dd>
+            <dt v-if="port.process.application_version.application" class="mt-3 text-muted">
+              Aplikacja
+            </dt>
+            <dd v-if="port.process.application_version.application" class="mt-1 break-all">
+              {{ port.process.application_version.application }}
+            </dd>
+          </template>
+        </dl>
         <p class="mt-4 text-[10px] uppercase tracking-widest text-muted">Argumenty</p>
         <pre
           class="mt-2 whitespace-pre-wrap break-all border-l-2 border-line pl-3 font-mono text-xs leading-6 text-soft"
@@ -112,11 +130,18 @@ async function copyAddress() {
             {{ item.compose_project || 'bez projektu' }} /
             {{ item.compose_service || 'bez usługi' }}
           </p>
+          <p class="mt-3 break-all font-mono text-xs">Obraz: {{ item.image ?? 'Nieustalony' }}</p>
+          <p class="mt-2 break-all text-xs">
+            Wersja aplikacji: {{ item.application_version?.version ?? 'Nieustalona' }}
+          </p>
+          <p v-if="item.application_version" class="mt-1 text-xs text-muted">
+            Źródło: {{ versionSource(item.application_version.source) }}
+          </p>
           <div class="mt-3 flex items-center gap-2 font-mono text-xs">
-            <span>{{ formatEndpoint(item.host_bind, item.host_port) }}</span
-            ><ArrowRight :size="12" class="text-accent" /><span
-              >{{ item.container_port }}/{{ item.proto }}</span
-            >
+            <span>{{ formatEndpoint(item.host_bind, item.host_port) }}</span><ArrowRight
+              :size="12"
+              class="text-accent"
+            /><span>{{ item.container_port }}/{{ item.proto }}</span>
           </div>
         </div>
         <p class="mt-4 text-[11px] leading-relaxed text-muted">
@@ -172,7 +197,8 @@ async function copyAddress() {
         <LockKeyhole :size="14" class="mt-0.5 shrink-0" />
         <p>
           Dane procesu mogą być częściowe z powodu uprawnień lub zakończenia procesu między
-          odczytami.
+          odczytami. Wersja pochodzi z metadanych, które mogły zmienić się po uruchomieniu. Tag
+          obrazu nie potwierdza wersji aplikacji.
         </p>
       </div>
     </div>

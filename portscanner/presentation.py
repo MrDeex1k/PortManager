@@ -10,6 +10,7 @@ COLUMNS = (
     "PORT",
     "PID",
     "PROC",
+    "VERSION",
     "DOCKER",
     "TUNNEL",
     "TAG",
@@ -47,6 +48,19 @@ def tunnel_text(tunnel: TunnelInfo) -> str:
     )
 
 
+def version_text(entry: PortEntry) -> str:
+    """Keep process and container evidence separate when both own a relation."""
+    values = []
+    if entry.process and entry.process.application_version:
+        info = entry.process.application_version
+        values.append(f"{info.version} [{info.source}]")
+    for mapping in entry.docker:
+        if mapping.application_version:
+            info = mapping.application_version
+            values.append(f"{mapping.container_name}: {info.version} [{info.source}]")
+    return safe_text("; ".join(dict.fromkeys(values)) or "—")
+
+
 def entry_cells(entry: PortEntry) -> tuple[str, ...]:
     process = entry.process
     name = process.name if process and process.name else "?"
@@ -75,6 +89,7 @@ def entry_cells(entry: PortEntry) -> tuple[str, ...]:
             str(entry.port),
             str(entry.pid) if entry.pid is not None else "?",
             name,
+            version_text(entry),
             docker or "—",
             tunnels or "—",
             tags or "—",

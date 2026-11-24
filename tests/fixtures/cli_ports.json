@@ -11,7 +11,8 @@
       "cmdline": [
         "python",
         "server.py"
-      ]
+      ],
+      "application_version": null
     },
     "docker": [
       {
@@ -22,7 +23,9 @@
         "container_port": 80,
         "proto": "tcp",
         "compose_project": "demo",
-        "compose_service": "web"
+        "compose_service": "web",
+        "application_version": null,
+        "image": null
       }
     ],
     "tunnels": [

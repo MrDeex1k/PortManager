@@ -36,6 +36,8 @@ def _search_text(entry: PortEntry) -> str:
         fields.append(str(entry.pid))
     if entry.process:
         fields.extend([entry.process.name or "", *(entry.process.cmdline or ())])
+        if version := entry.process.application_version:
+            fields.extend([version.version, version.application or "", version.source])
     for mapping in entry.docker:
         fields.extend(
             [
@@ -43,8 +45,11 @@ def _search_text(entry: PortEntry) -> str:
                 mapping.container_name,
                 mapping.compose_project or "",
                 mapping.compose_service or "",
+                mapping.image or "",
             ]
         )
+        if version := mapping.application_version:
+            fields.extend([version.version, version.application or "", version.source])
     fields.extend(route.hostname or "" for route in entry.tunnels)
     fields.extend(tag.name for tag in entry.tags)
     for mapping in entry.kubernetes:

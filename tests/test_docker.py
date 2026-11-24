@@ -230,3 +230,23 @@ def test_commands_share_one_budget(runner, monkeypatch):
     assert result.report.code == "timeout"
     assert runner.call_count == 2
     assert [call.args[1] for call in runner.call_args_list] == [3, 1.5]
+
+
+def test_version_uses_oci_declaration_and_preserves_image_reference():
+    ports = docker.parse_inspect(
+        record(image="registry:5000/web:latest", version="2.3.4")
+    )
+    assert all(p.image == "registry:5000/web:latest" for p in ports)
+    for port in ports:
+        assert port.application_version is not None
+        assert port.application_version.version == "2.3.4"
+        assert port.application_version.source == "oci_label"
+
+
+@pytest.mark.parametrize("version", [None, "", {}, 42, "bad\nversion", "x" * 513])
+def test_invalid_or_missing_version_keeps_ports_without_guessing_image_tag(version):
+    ports = docker.parse_inspect(record(image="postgres:17", version=version))
+    assert len(ports) == 3
+    assert all(
+        p.application_version is None and p.image == "postgres:17" for p in ports
+    )

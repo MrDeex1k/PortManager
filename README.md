@@ -50,6 +50,7 @@
 Dev server nie startuje, bo `3000` jest już zajęty. Baza działa w Dockerze, ale nie pamiętasz mapowania. Tunel wskazuje usługę, którą trzeba odnaleźć. **PortManager łączy te informacje w jeden widok**, żeby skrócić drogę od „co tu działa?” do kolejnego kroku.
 
 - **Znajdź właściciela portu.** Zobacz adres bind, protokół, PID, nazwę i dostępne argumenty procesu. Filtruj po `:8080`, `pid:8421` lub tekście.
+- **Rozpoznaj wersję aplikacji.** Zobacz deklarowaną wersję ze skryptu Node/Bun, pakietu macOS lub etykiety OCI kontenera wraz ze źródłem. [Zakres i ograniczenia](docs/core-api.md#identyfikacja-wersji-aplikacji).
 - **Połącz lokalny serwis z jego otoczeniem.** Sprawdź publikacje Docker, projekt i usługę Compose oraz reguły tuneli cloudflared.
 - **Dodaj kontekst Kubernetes.** Opcjonalnie zobacz NodePort węzłów o lokalnym IP i cele lokalnych sesji `kubectl port-forward`.
 - **Zwolnij port świadomie.** Zakończ dozwolony własny proces po weryfikacji i potwierdzeniu. Procesy infrastruktury są chronione.
@@ -101,7 +102,7 @@ PID w przykładzie jest demonstracyjny — podaj PID własnego procesu. Operacja
 
 ## Szybki start
 
-**Wymagania:** Python **3.12+** i [uv](https://docs.astral.sh/uv/). Do zbudowania GUI dodatkowo **Bun 1.4.3**, zgodnie z `frontend/package.json`, i **Node** do kontroli typów Vue. CLI i TUI nie wymagają Bun ani środowiska graficznego.
+**Wymagania:** Python **3.12+** i [uv](https://docs.astral.sh/uv/). Do zbudowania GUI dodatkowo **Bun 1.4.4**, zgodnie z `frontend/package.json`, i **Node** do kontroli typów Vue. CLI i TUI nie wymagają Bun ani środowiska graficznego.
 
 ```bash
 git clone https://github.com/MrDeex1k/PortManager.git
