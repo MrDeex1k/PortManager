@@ -196,6 +196,9 @@ lefthook-local.yaml
 # GUI: zależności i zasoby generowane przez Vite
 node_modules/
 portscanner/gui/assets/
+frontend/flashwright-results/
+
+# Artefakty wcześniejszych podglądów i uruchomień lokalnych
 frontend/playwright-report/
 frontend/test-results/
 .playwright-cli/

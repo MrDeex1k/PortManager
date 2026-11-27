@@ -154,6 +154,7 @@ def read_application_version(
         TypeError,
         AttributeError,
         ExpatError,
+        IndexError,
         RecursionError,
     ):
         pass

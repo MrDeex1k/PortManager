@@ -1,0 +1,50 @@
+import { expect, test } from './test'
+
+test('wyszukuje po metadanych wersji i pokazuje ich źródło', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByText('Tryb przeglądarki.')).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Wersja' })).toBeVisible()
+  await expect(page.getByTestId('refresh')).toBeDisabled()
+  await expect(page.getByTestId('export')).toBeDisabled()
+
+  await page.keyboard.press('/')
+  const search = page.getByTestId('search')
+  const inspector = page.getByRole('complementary', { name: 'Szczegóły portu' })
+  await expect(search).toBeFocused()
+  await search.fill('workspace-web')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await page.getByRole('button', { name: ':3000', exact: true }).click()
+  await expect(inspector.getByText('1.2.3', { exact: true })).toBeVisible()
+  await expect(inspector.getByText('package.json', { exact: true })).toBeVisible()
+  await expect(inspector.getByText('app.example.com')).toBeVisible()
+
+  await search.fill('7.4.2')
+  await expect(page.locator('tbody tr')).toContainText('7.4.2')
+  await page.getByRole('button', { name: ':6379', exact: true }).click()
+  await expect(inspector.getByText('Obraz: redis:7')).toBeVisible()
+  await expect(inspector.getByText('Źródło: Etykieta OCI')).toBeVisible()
+
+  await search.fill('postgres:17')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await page.getByRole('button', { name: ':5432', exact: true }).click()
+  await expect(inspector.getByText('Wersja aplikacji: Nieustalona')).toBeVisible()
+})
+
+test('filtruje protokół i źródło w wąskim oknie', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'UDP', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: ':5353', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Kubernetes', exact: true }).click()
+  await expect(page.getByText('Brak wyników dla tych filtrów.')).toBeVisible()
+  await page.getByRole('button', { name: 'Wyczyść filtry' }).click()
+  await page.getByRole('button', { name: 'Kubernetes', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await page.getByRole('button', { name: ':31080', exact: true }).click()
+  const inspector = page.getByRole('complementary', { name: 'Szczegóły portu' })
+  await expect(inspector.getByText('Węzeł: worker-demo')).toBeVisible()
+  await inspector.getByRole('button', { name: 'Zamknij szczegóły' }).click()
+  await expect(inspector).toBeHidden()
+})
