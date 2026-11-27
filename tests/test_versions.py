@@ -143,10 +143,22 @@ def test_macos_bundle_version(tmp_path: Path, binary: bool) -> None:
     )
 
 
-def test_malformed_plist_does_not_fail_collection(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(b"<?xml version='1.0'?><plist><broken>", id="invalid-xml"),
+        pytest.param(
+            b"<?xml version='1.0'?><plist><key>x</key></plist>",
+            id="key-outside-dict",
+        ),
+    ],
+)
+def test_malformed_plist_does_not_fail_collection(
+    tmp_path: Path, content: bytes
+) -> None:
     contents = tmp_path / "Demo.app" / "Contents"
     contents.mkdir(parents=True)
-    (contents / "Info.plist").write_bytes(b"<?xml version='1.0'?><plist><broken>")
+    (contents / "Info.plist").write_bytes(content)
     process = node_process(tmp_path)
     process.exe.return_value = str(contents / "MacOS" / "Demo")
     assert read_application_version(process, ()) is None
